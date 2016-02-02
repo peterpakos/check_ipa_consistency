@@ -270,12 +270,14 @@ sudo_rules() {
 replication() {
   local server= agreements= state= a= max=0 i=
   local dir="${TMP_DIR}/replication"
+  local suffix=$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")
+
   mkdir -p "$dir"
 
   for server in "${SERVERS[@]}"; do
     (
     if ! agreements=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
-      -w "$BINDPW" -b "cn=replica,cn=dc\3Dipa\,dc\3Dwandisco\,dc\3Dcom,\
+      -w "$BINDPW" -b "cn=replica,cn=${suffix},\
       cn=mapping tree,cn=config" -s one nsDS5ReplicaHost \
       nsds5replicaLastUpdateStatus 2>/dev/null \
       | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); \
