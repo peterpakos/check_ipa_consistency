@@ -44,8 +44,16 @@ get_pass() {
   else
     printf "${BINDDN#cn=} password: "
     read -s BINDPW
-    printf "\n\n"
+    printf "\n"
   fi
+}
+
+validate_pass() {
+  if ! ldapwhoami -x -h "${SERVERS}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+    printf "Incorrect bind password, exiting.\n" >&2
+    exit 1
+  fi
+  printf "\n"
 }
 
 hr() {
@@ -368,6 +376,7 @@ cleanup() {
 main() {
   get_opts "$@"
   get_pass
+  validate_pass
   display_header
   query_servers
   display_data
