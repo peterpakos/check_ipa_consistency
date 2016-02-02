@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The script checks consistency across FreeIPA servers.
-# Put bind password in to ipa_check_consistency.passwd file to stop password
+# Put BIND password in to ipa_check_consistency.passwd file to stop password
 # prompts.
 #
 # Author: Peter Pakos <peter.pakos@wandisco.com>
@@ -12,20 +12,21 @@ readonly VERSION="16.2.2"
 readonly APP_NAME="$(basename $0)"
 readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
-readonly PASSWD_FILE="${DIR}/$(basename $0).passwd"
+PASSWD_FILE="${DIR}/$(basename $0).passwd"
 
-readonly -a SERVERS=("shdc01" "shdc02" "ashb01" "ashb02" "frem01")
-readonly DOMAIN="ipa.wandisco.com"
-readonly SUFFIX="dc=ipa,dc=wandisco,dc=com"
-readonly BINDDN="cn=Directory Manager"
+SERVERS=()
+DOMAIN=
+SUFFIX=
+BINDDN="cn=Directory Manager"
 BINDPW=
+
 readonly COL1=20
 readonly COLS=11
 
 IFS=$'\n'
 
 display_version() {
-  echo "${APP_NAME} version ${VERSION}"
+  printf "%s version %s\n" "$APP_NAME" "$VERSION"
 }
 
 display_help() {
@@ -33,31 +34,39 @@ display_help() {
   cat <<HELP
 Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
+-H  List of hosts (e.g. "server1 server2 server3")
+-d  IPA domain (e.g. "ipa.domain.com")
+-s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
+-D  BIND DN (default: cn=Directory Manager)
+-W  BIND password (prompt for one if not supplied)
+-p  Password file (default: $(basename $0).passwd)
 -h  Print this help summary page
 -v  Print version number
 HELP
 }
 
 get_pass() {
-  if [[ -r "$PASSWD_FILE" ]]; then
-    BINDPW="$(<"$PASSWD_FILE")"
-  else
-    printf "${BINDDN#cn=} password: "
-    read -s BINDPW
-    printf "\n"
+  if [[ -z "$BINDPW" ]]; then
+    if [[ -r "$PASSWD_FILE" ]]; then
+      BINDPW="$(<"$PASSWD_FILE")"
+    else
+      printf "${BINDDN#cn=} password: "
+      read -s BINDPW
+      printf "\n"
+    fi
   fi
 }
 
 validate_pass() {
   if ! ldapwhoami -x -h "${SERVERS}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
-    printf "Incorrect bind password, exiting.\n" >&2
+    printf "BIND unsuccessful, check details and try again.\n" >&2
     exit 1
   fi
   printf "\n"
 }
 
 hr() {
-  local len=$(( COL1 + 5 * COLS + COLS ))
+  local len=$(( COL1 + ${#SERVERS[@]} * COLS + COLS ))
 
   printf "=%.0s" $(seq $len)
   printf "\n"
@@ -89,7 +98,7 @@ anon_bind() {
   local dir="${TMP_DIR}/anon_bind"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Anonymous bind"
+  printf "%-${COL1}s" "Anonymous BIND"
   for server in "${SERVERS[@]}"; do
     (
     if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -324,7 +333,7 @@ replication() {
 }
 
 get_opts() {
-  while getopts ":vh" opt; do
+  while getopts ":vhd:D:W:s:p:H:" opt; do
     case $opt in
       v)
         display_version
@@ -334,14 +343,58 @@ get_opts() {
         display_help
         exit 0
         ;;
+      d)
+        DOMAIN="${OPTARG}"
+        SUFFIX=$(sed -e 's@\.@,dc=@g' <<<"dc=${DOMAIN}")
+        ;;
+      D)
+        BINDDN="${OPTARG}"
+        ;;
+      W)
+        BINDPW="${OPTARG}"
+        ;;
+      s)
+        SUFFIX="${OPTARG}"
+        ;;
+      p)
+        PASSWD_FILE="${OPTARG}"
+        if [[ ! -r "$PASSWD_FILE" ]]; then
+          printf "Unable to open password file %s, exiting.\n" "$PASSWD_FILE"
+          exit 1
+        fi
+        ;;
+      H)
+        IFS=" "
+        SERVERS=($OPTARG)
+        IFS=$'\n'
+        ;;
       *)
-        echo -e "Invalid option: -${OPTARG}\n"
+        printf "Invalid option: %s\n\n" "$OPTARG"
         display_help
         exit 1
         ;;
     esac
-    shift $((OPTIND-1))
+    #shift $((OPTIND-1))
   done
+}
+
+check_vars() {
+  local fail=0
+
+  if [[ -z "$DOMAIN" ]]; then
+    printf "IPA domain not specified (-d)\n" >&2
+    fail=1
+  fi
+  if [[ ${#SERVERS[@]} -lt 1 ]]; then
+    printf "Hosts not specified (-H)\n" >&2
+    fail=1
+  fi
+
+  if [[ $fail -ne 0 ]]; then
+    printf "\n"
+    display_help
+    exit 1
+  fi
 }
 
 query_servers() {
@@ -375,6 +428,7 @@ cleanup() {
 
 main() {
   get_opts "$@"
+  check_vars
   get_pass
   validate_pass
   display_header
