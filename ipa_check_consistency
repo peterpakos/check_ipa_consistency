@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 #
 # The script checks consistency across FreeIPA servers.
-# Put bind password to ipa_check_consistency.passwd file to stop password
+# Put bind password in to ipa_check_consistency.passwd file to stop password
 # prompts.
 #
 # Author: Peter Pakos <peter.pakos@wandisco.com>
 
 set -euo pipefail
 
-readonly VERSION="16.1.31"
+readonly VERSION="16.2.2"
 readonly APP_NAME="$(basename $0)"
 readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
 readonly PASSWD_FILE="${DIR}/$(basename $0).passwd"
 
+readonly -a SERVERS=("shdc01" "shdc02" "ashb01" "ashb02" "frem01")
 readonly DOMAIN="ipa.wandisco.com"
 readonly SUFFIX="dc=ipa,dc=wandisco,dc=com"
 readonly BINDDN="cn=Directory Manager"
 BINDPW=
-readonly -a SERVERS=("shdc01" "shdc02" "ashb01" "ashb02" "frem01")
 readonly COL1=20
 readonly COLS=11
 
@@ -252,7 +252,9 @@ sudo_rules() {
   printf "%-${COL1}s" "SUDO rules"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
+      -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one \
+      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
     printf "$count" > "${dir}/${server}"

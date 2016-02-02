@@ -2,7 +2,7 @@
 
 The script checks consistency across FreeIPA servers.
 
-Put bind password into ipa_check_consistency.passwd file to stop password prompts.
+Put bind password in to ipa_check_consistency.passwd file to stop password prompts.
 
 Please note, it's been only tested in FreeIPA 4.2 (Centos 7.2) environment.
 
