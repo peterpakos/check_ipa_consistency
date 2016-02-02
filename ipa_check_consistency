@@ -1,0 +1,374 @@
+#!/usr/bin/env bash
+#
+# The script checks consistency across FreeIPA servers.
+# Put bind password to ipa_check_consistency.passwd file to stop password
+# prompts.
+#
+# Author: Peter Pakos <peter.pakos@wandisco.com>
+
+set -euo pipefail
+
+readonly VERSION="16.1.31"
+readonly APP_NAME="$(basename $0)"
+readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
+readonly TMP_DIR="$(mktemp -d)"
+readonly PASSWD_FILE="${DIR}/$(basename $0).passwd"
+
+readonly DOMAIN="ipa.wandisco.com"
+readonly SUFFIX="dc=ipa,dc=wandisco,dc=com"
+readonly BINDDN="cn=Directory Manager"
+BINDPW=
+readonly -a SERVERS=("shdc01" "shdc02" "ashb01" "ashb02" "frem01")
+readonly COL1=20
+readonly COLS=11
+
+IFS=$'\n'
+
+display_version() {
+  echo "${APP_NAME} version ${VERSION}"
+}
+
+display_help() {
+  display_version
+  cat <<HELP
+Usage: ${APP_NAME} [OPTIONS]
+AVAILABLE OPTIONS:
+-h  Print this help summary page
+-v  Print version number
+HELP
+}
+
+get_pass() {
+  if [[ -r "$PASSWD_FILE" ]]; then
+    BINDPW="$(<"$PASSWD_FILE")"
+  else
+    printf "${BINDDN#cn=} password: "
+    read -s BINDPW
+    printf "\n\n"
+  fi
+}
+
+hr() {
+  local len=$(( COL1 + 5 * COLS + COLS ))
+
+  printf "=%.0s" $(seq $len)
+  printf "\n"
+}
+
+display_header() {
+  local server=
+
+  printf "%-${COL1}s" "FreeIPA servers:"
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$server"
+  done
+  printf "%-${COLS}s\n" "Consistent?"
+  hr
+}
+
+is_consistent() {
+  local dir="$1"
+
+  if diff --from-file "$dir"/* &>/dev/null; then
+    printf "YES"
+  else
+    printf "NO"
+  fi
+}
+
+anon_bind() {
+  local server= state=
+  local dir="${TMP_DIR}/anon_bind"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "Anonymous bind"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=config" "(cn=config)" \
+      "nsslapd-allow-anonymous-access" 2>/dev/null \
+      | awk -F'nsslapd-allow-anonymous-access: ' \
+      '/nsslapd-allow-anonymous-access/ {print $2}'); then
+      state="FAIL"
+    fi
+    printf "$state" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+users() {
+  local server= count=
+  local dir="${TMP_DIR}/users"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "Users"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=users,cn=accounts,${SUFFIX}" -s one \
+      "(uid=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+groups() {
+  local server= count=
+  local dir="${TMP_DIR}/groups"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "Groups"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=groups,cn=accounts,${SUFFIX}" -s one \
+      "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+ldap_conflicts() {
+  local server= conflicts=
+  local dir="${TMP_DIR}/ldap_conflicts"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "LDAP conflicts"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! conflicts=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "${SUFFIX}" -s sub "nsds5ReplConflict=*" \* \
+      "nsds5ReplConflict" 2>/dev/null); then
+      conflicts="FAIL"
+    fi
+    if [[ -n "$conflicts" ]]; then
+      conflicts="YES"
+    else
+      conflicts="NO"
+    fi
+    printf "$conflicts" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+hosts() {
+  local server= count=
+  local dir="${TMP_DIR}/hosts"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "Hosts"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=computers,cn=accounts,${SUFFIX}" -s one \
+      "(fqdn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+hostgroups() {
+  local server= count=
+  local dir="${TMP_DIR}/hostgroups"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "Hostgroups"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=hostgroups,cn=accounts,${SUFFIX}" \
+      -s one "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+hbac_rules() {
+  local server= count=
+  local dir="${TMP_DIR}/hbac_rules"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "HBAC rules"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=hbac,${SUFFIX}" -s one \
+      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+sudo_rules() {
+  local server= count=
+  local dir="${TMP_DIR}/hbac_rules"
+  mkdir -p "$dir"
+
+  printf "%-${COL1}s" "SUDO rules"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+  done
+  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+}
+
+replication() {
+  local server= agreements= state= a= max=0 i=
+  local dir="${TMP_DIR}/replication"
+  mkdir -p "$dir"
+
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! agreements=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
+      -w "$BINDPW" -b "cn=replica,cn=dc\3Dipa\,dc\3Dwandisco\,dc\3Dcom,\
+      cn=mapping tree,cn=config" -s one nsDS5ReplicaHost \
+      nsds5replicaLastUpdateStatus 2>/dev/null \
+      | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); \
+      if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
+      | sed -e "s/.$DOMAIN//g"); then
+      state="FAIL"
+    fi
+    for a in $agreements; do
+      printf "%s\n" "$a" >>"${dir}/${server}"
+    done
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    if [[ -r "${dir}/${server}" ]]; then
+      n=$(wc -l < "${dir}/${server}")
+    else
+      n=0
+    fi
+    [[ $n -gt $max ]] && max=$n
+  done
+  for ((i=1; i<=$max; i++)); do
+    [[ $i -eq 1 ]] && col1="Replication status" || col1=""
+    printf "%-${COL1}s" "$col1"
+    for server in "${SERVERS[@]}"; do
+      if [[ -s "${dir}/${server}" ]]; then
+        line=$(sed -n '1p' "${dir}/${server}")
+        sed -i -e '1d' "${dir}/${server}"
+      else
+        line=""
+      fi
+      printf "%-${COLS}s" "$line"
+    done
+    printf "\n"
+  done
+}
+
+get_opts() {
+  while getopts ":vh" opt; do
+    case $opt in
+      v)
+        display_version
+        exit 0
+        ;;
+      h)
+        display_help
+        exit 0
+        ;;
+      *)
+        echo -e "Invalid option: -${OPTARG}\n"
+        display_help
+        exit 1
+        ;;
+    esac
+    shift $((OPTIND-1))
+  done
+}
+
+query_servers() {
+  users > "$TMP_DIR/users.out" &
+  groups > "$TMP_DIR/groups.out" &
+  hosts > "$TMP_DIR/hosts.out" &
+  hostgroups > "$TMP_DIR/hostgroups.out" &
+  hbac_rules > "$TMP_DIR/hbac_rules.out" &
+  sudo_rules > "$TMP_DIR/sudo_rules.out" &
+  ldap_conflicts > "$TMP_DIR/ldap_conflicts.out" &
+  anon_bind > "$TMP_DIR/anon_bind.out" &
+  replication > "$TMP_DIR/replication.out" &
+  wait
+}
+
+display_data() {
+  printf "%s\n" "$(< "${TMP_DIR}/users.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/groups.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/hosts.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/hostgroups.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/hbac_rules.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/sudo_rules.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/ldap_conflicts.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/anon_bind.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/replication.out")"
+}
+
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+
+main() {
+  get_opts "$@"
+  get_pass
+  display_header
+  query_servers
+  display_data
+  hr
+  cleanup
+}
+
+main "$@"
