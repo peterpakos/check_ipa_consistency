@@ -301,7 +301,7 @@ replication() {
       nsds5replicaLastUpdateStatus 2>/dev/null \
       | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); \
       if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
-      | sed -e "s/.$DOMAIN//g"); then
+      | sed -e "s/\.${DOMAIN}//g"); then
       state="FAIL"
     fi
     for a in $agreements; do
@@ -356,7 +356,7 @@ get_opts() {
         exit 0
         ;;
       d)
-        DOMAIN="${OPTARG}"
+        DOMAIN=$(awk '{print tolower($0)}' <<<"${OPTARG}")
         SUFFIX=$(sed -e 's@\.@,dc=@g' <<<"dc=${DOMAIN}")
         ;;
       D)
