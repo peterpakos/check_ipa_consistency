@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-readonly VERSION="16.2.2"
+readonly VERSION="16.2.3"
 readonly APP_NAME="$(basename $0)"
 readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -20,8 +20,9 @@ SUFFIX=
 BINDDN="cn=Directory Manager"
 BINDPW=
 
-readonly COL1=20
-readonly COLS=11
+COL1=19
+COLS=10
+COLL=11
 
 IFS=$'\n'
 
@@ -49,6 +50,7 @@ get_pass() {
   if [[ -z "$BINDPW" ]]; then
     if [[ -r "$PASSWD_FILE" ]]; then
       BINDPW="$(<"$PASSWD_FILE")"
+      printf "BIND password loaded from file %s\n" $(basename "$PASSWD_FILE")
     else
       printf "${BINDDN#cn=} password: "
       read -s BINDPW
@@ -66,7 +68,7 @@ validate_pass() {
 }
 
 hr() {
-  local len=$(( COL1 + ${#SERVERS[@]} * COLS + COLS ))
+  local len=$(( COL1 + ${#SERVERS[@]} * COLS + COLL ))
 
   printf "=%.0s" $(seq $len)
   printf "\n"
@@ -79,7 +81,7 @@ display_header() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$server"
   done
-  printf "%-${COLS}s\n" "Consistent?"
+  printf "%-${COLL}s\n" "Consistent?"
   hr
 }
 
@@ -115,7 +117,7 @@ anon_bind() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 users() {
@@ -138,7 +140,7 @@ users() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 groups() {
@@ -161,7 +163,7 @@ groups() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 ldap_conflicts() {
@@ -189,7 +191,7 @@ ldap_conflicts() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 hosts() {
@@ -212,7 +214,7 @@ hosts() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 hostgroups() {
@@ -235,7 +237,7 @@ hostgroups() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 hbac_rules() {
@@ -258,7 +260,7 @@ hbac_rules() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 sudo_rules() {
@@ -281,7 +283,7 @@ sudo_rules() {
   for server in "${SERVERS[@]}"; do
     printf "%-${COLS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLS}s\n" "$(is_consistent "$dir")"
+  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
 }
 
 replication() {
@@ -332,6 +334,16 @@ replication() {
   done
 }
 
+update_cols() {
+  local max=0
+
+  for server in "${SERVERS[@]}"; do
+    [[ ${#server} -gt $max ]] && max=${#server}
+  done
+  max=$((max+3))
+  [[ $max -gt $COLS ]] && COLS=$max || true
+}
+
 get_opts() {
   while getopts ":vhd:D:W:s:p:H:" opt; do
     case $opt in
@@ -367,6 +379,7 @@ get_opts() {
         IFS=" "
         SERVERS=($OPTARG)
         IFS=$'\n'
+        update_cols
         ;;
       *)
         printf "Invalid option: %s\n\n" "$OPTARG"
@@ -374,19 +387,18 @@ get_opts() {
         exit 1
         ;;
     esac
-    #shift $((OPTIND-1))
   done
 }
 
 check_vars() {
   local fail=0
 
-  if [[ -z "$DOMAIN" ]]; then
-    printf "IPA domain not specified (-d)\n" >&2
-    fail=1
-  fi
   if [[ ${#SERVERS[@]} -lt 1 ]]; then
     printf "Hosts not specified (-H)\n" >&2
+    fail=1
+  fi
+  if [[ -z "$DOMAIN" ]]; then
+    printf "IPA domain not specified (-d)\n" >&2
     fail=1
   fi
 
