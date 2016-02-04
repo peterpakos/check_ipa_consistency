@@ -9,17 +9,16 @@
 set -euo pipefail
 
 readonly VERSION="16.2.4"
-readonly APP_NAME="$(basename $0)"
-readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
+readonly APP_NAME="$(basename "$0")"
+readonly DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
-PASSWD_FILE="${DIR}/$(basename $0).passwd"
+PASSWD_FILE="${DIR}/$(basename "$0").passwd"
 
 SERVERS=()
-DOMAIN=
-SUFFIX=
+DOMAIN=""
+SUFFIX=""
 BINDDN="cn=Directory Manager"
-BINDPW=
-
+BINDPW=""
 FIRST_COLUMN=20
 MIDDLE_COLUMNS=5
 LAST_COLUMN=11
@@ -40,7 +39,7 @@ AVAILABLE OPTIONS:
 -s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
 -D  BIND DN (default: cn=Directory Manager)
 -W  BIND password (prompt for one if not supplied)
--p  Password file (default: $(basename $0).passwd)
+-p  Password file (default: $(basename "$0").passwd)
 -h  Print this help summary page
 -v  Print version number
 HELP
@@ -50,17 +49,17 @@ get_pass() {
   if [[ -z "$BINDPW" ]]; then
     if [[ -r "$PASSWD_FILE" ]]; then
       BINDPW="$(<"$PASSWD_FILE")"
-      printf "BIND password loaded from file %s\n" $(basename "$PASSWD_FILE")
+      printf "BIND password loaded from file %s\n" "$(basename "$PASSWD_FILE")"
     else
-      printf "${BINDDN#cn=} password: "
-      read -s BINDPW
+      printf "%s password: " "${BINDDN#cn=}"
+      read -rs BINDPW
       printf "\n"
     fi
   fi
 }
 
 validate_pass() {
-  if ! ldapwhoami -x -h "${SERVERS}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+  if ! ldapwhoami -x -h "${SERVERS[1]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
     printf "BIND unsuccessful, check details and try again.\n" >&2
     exit 1
   fi
@@ -75,7 +74,7 @@ hr() {
 }
 
 display_header() {
-  local server=
+  local server=""
 
   printf "%-${FIRST_COLUMN}s" "FreeIPA servers:"
   for server in "${SERVERS[@]}"; do
@@ -96,8 +95,9 @@ is_consistent() {
 }
 
 anon_bind() {
-  local server= state=
+  local server="" state=""
   local dir="${TMP_DIR}/anon_bind"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
@@ -110,7 +110,7 @@ anon_bind() {
       '/nsslapd-allow-anonymous-access/ {print $2}'); then
       state="FAIL"
     fi
-    printf "$state" > "${dir}/${server}"
+    printf "%s" "$state" > "${dir}/${server}"
     ) &
   done
   wait
@@ -121,7 +121,7 @@ anon_bind() {
 }
 
 users() {
-  local server= count=
+  local server="" count=""
   local dir="${TMP_DIR}/users"
   mkdir -p "$dir"
 
@@ -133,7 +133,7 @@ users() {
       "(uid=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -144,8 +144,9 @@ users() {
 }
 
 groups() {
-  local server= count=
+  local server="" count=""
   local dir="${TMP_DIR}/groups"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "Groups"
@@ -156,7 +157,7 @@ groups() {
       "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -167,8 +168,9 @@ groups() {
 }
 
 ldap_conflicts() {
-  local server= conflicts=
+  local server="" conflicts=""
   local dir="${TMP_DIR}/ldap_conflicts"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "LDAP conflicts"
@@ -184,7 +186,7 @@ ldap_conflicts() {
     else
       conflicts="NO"
     fi
-    printf "$conflicts" > "${dir}/${server}"
+    printf "%s" "$conflicts" > "${dir}/${server}"
     ) &
   done
   wait
@@ -195,8 +197,9 @@ ldap_conflicts() {
 }
 
 hosts() {
-  local server= count=
+  local server="" count=""
   local dir="${TMP_DIR}/hosts"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "Hosts"
@@ -207,7 +210,7 @@ hosts() {
       "(fqdn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -218,8 +221,9 @@ hosts() {
 }
 
 hostgroups() {
-  local server= count=
+  local server="" count=""
   local dir="${TMP_DIR}/hostgroups"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "Hostgroups"
@@ -230,7 +234,7 @@ hostgroups() {
       -s one "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -241,8 +245,9 @@ hostgroups() {
 }
 
 hbac_rules() {
-  local server= count=
+  local server="" count=""
   local dir="${TMP_DIR}/hbac_rules"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "HBAC rules"
@@ -253,7 +258,7 @@ hbac_rules() {
       "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -264,8 +269,9 @@ hbac_rules() {
 }
 
 sudo_rules() {
-  local server= count= first_column=
+  local server="" count="" first_column=""
   local dir="${TMP_DIR}/hbac_rules"
+
   mkdir -p "$dir"
 
   printf "%-${FIRST_COLUMN}s" "SUDO rules"
@@ -276,7 +282,7 @@ sudo_rules() {
       "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
       count="FAIL"
     fi
-    printf "$count" > "${dir}/${server}"
+    printf "%s" "$count" > "${dir}/${server}"
     ) &
   done
   wait
@@ -287,7 +293,7 @@ sudo_rules() {
 }
 
 replication() {
-  local server= agreements= state= a= max=0 i=
+  local server="" agreements="" state="" a="" max=0 i=""
   local dir="${TMP_DIR}/replication"
   local suffix=$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")
 
@@ -299,8 +305,7 @@ replication() {
       -w "$BINDPW" -b "cn=replica,cn=${suffix},\
       cn=mapping tree,cn=config" -s one nsDS5ReplicaHost \
       nsds5replicaLastUpdateStatus 2>/dev/null \
-      | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); \
-      if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
+      | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
       | sed -e "s/\.${DOMAIN}//g"); then
       state="FAIL"
     fi
@@ -318,7 +323,7 @@ replication() {
     fi
     [[ $n -gt $max ]] && max=$n
   done
-  for ((i=1; i<=$max; i++)); do
+  for ((i=1; i<=max; i++)); do
     [[ $i -eq 1 ]] && first_column="Replication status" || first_column=""
     printf "%-${FIRST_COLUMN}s" "$first_column"
     for server in "${SERVERS[@]}"; do
