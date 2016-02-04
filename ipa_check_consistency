@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-readonly VERSION="16.2.3"
+readonly VERSION="16.2.4"
 readonly APP_NAME="$(basename $0)"
 readonly DIR="$(cd "$(dirname "${0}")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -20,9 +20,9 @@ SUFFIX=
 BINDDN="cn=Directory Manager"
 BINDPW=
 
-COL1=19
-COLS=10
-COLL=11
+FIRST_COLUMN=20
+MIDDLE_COLUMNS=5
+LAST_COLUMN=11
 
 IFS=$'\n'
 
@@ -68,7 +68,7 @@ validate_pass() {
 }
 
 hr() {
-  local len=$(( COL1 + ${#SERVERS[@]} * COLS + COLL ))
+  local len=$(( FIRST_COLUMN + ${#SERVERS[@]} * MIDDLE_COLUMNS + LAST_COLUMN ))
 
   printf "=%.0s" $(seq $len)
   printf "\n"
@@ -77,11 +77,11 @@ hr() {
 display_header() {
   local server=
 
-  printf "%-${COL1}s" "FreeIPA servers:"
+  printf "%-${FIRST_COLUMN}s" "FreeIPA servers:"
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$server"
+    printf "%-${MIDDLE_COLUMNS}s" "$server"
   done
-  printf "%-${COLL}s\n" "Consistent?"
+  printf "%-${LAST_COLUMN}s\n" "Consistent?"
   hr
 }
 
@@ -100,7 +100,7 @@ anon_bind() {
   local dir="${TMP_DIR}/anon_bind"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Anonymous BIND"
+  printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
   for server in "${SERVERS[@]}"; do
     (
     if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -115,9 +115,9 @@ anon_bind() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 users() {
@@ -125,7 +125,7 @@ users() {
   local dir="${TMP_DIR}/users"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Users"
+  printf "%-${FIRST_COLUMN}s" "Users"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -138,9 +138,9 @@ users() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 groups() {
@@ -148,7 +148,7 @@ groups() {
   local dir="${TMP_DIR}/groups"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Groups"
+  printf "%-${FIRST_COLUMN}s" "Groups"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -161,9 +161,9 @@ groups() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 ldap_conflicts() {
@@ -171,7 +171,7 @@ ldap_conflicts() {
   local dir="${TMP_DIR}/ldap_conflicts"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "LDAP conflicts"
+  printf "%-${FIRST_COLUMN}s" "LDAP conflicts"
   for server in "${SERVERS[@]}"; do
     (
     if ! conflicts=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -189,9 +189,9 @@ ldap_conflicts() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 hosts() {
@@ -199,7 +199,7 @@ hosts() {
   local dir="${TMP_DIR}/hosts"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Hosts"
+  printf "%-${FIRST_COLUMN}s" "Hosts"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -212,9 +212,9 @@ hosts() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 hostgroups() {
@@ -222,7 +222,7 @@ hostgroups() {
   local dir="${TMP_DIR}/hostgroups"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "Hostgroups"
+  printf "%-${FIRST_COLUMN}s" "Hostgroups"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -235,9 +235,9 @@ hostgroups() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 hbac_rules() {
@@ -245,7 +245,7 @@ hbac_rules() {
   local dir="${TMP_DIR}/hbac_rules"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "HBAC rules"
+  printf "%-${FIRST_COLUMN}s" "HBAC rules"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
@@ -258,17 +258,17 @@ hbac_rules() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 sudo_rules() {
-  local server= count=
+  local server= count= first_column=
   local dir="${TMP_DIR}/hbac_rules"
   mkdir -p "$dir"
 
-  printf "%-${COL1}s" "SUDO rules"
+  printf "%-${FIRST_COLUMN}s" "SUDO rules"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
@@ -281,9 +281,9 @@ sudo_rules() {
   done
   wait
   for server in "${SERVERS[@]}"; do
-    printf "%-${COLS}s" "$(< "${dir}/${server}")"
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${COLL}s\n" "$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
 }
 
 replication() {
@@ -319,8 +319,8 @@ replication() {
     [[ $n -gt $max ]] && max=$n
   done
   for ((i=1; i<=$max; i++)); do
-    [[ $i -eq 1 ]] && col1="Replication status" || col1=""
-    printf "%-${COL1}s" "$col1"
+    [[ $i -eq 1 ]] && first_column="Replication status" || first_column=""
+    printf "%-${FIRST_COLUMN}s" "$first_column"
     for server in "${SERVERS[@]}"; do
       if [[ -s "${dir}/${server}" ]]; then
         line=$(sed -n '1p' "${dir}/${server}")
@@ -328,7 +328,7 @@ replication() {
       else
         line=""
       fi
-      printf "%-${COLS}s" "$line"
+      printf "%-${MIDDLE_COLUMNS}s" "$line"
     done
     printf "\n"
   done
@@ -340,8 +340,8 @@ update_cols() {
   for server in "${SERVERS[@]}"; do
     [[ ${#server} -gt $max ]] && max=${#server}
   done
-  max=$((max+3))
-  [[ $max -gt $COLS ]] && COLS=$max || true
+  max=$((max+4))
+  [[ $max -gt $MIDDLE_COLUMNS ]] && MIDDLE_COLUMNS=$max || true
 }
 
 get_opts() {
@@ -356,8 +356,8 @@ get_opts() {
         exit 0
         ;;
       d)
-        DOMAIN=$(awk '{print tolower($0)}' <<<"${OPTARG}")
-        SUFFIX=$(sed -e 's@\.@,dc=@g' <<<"dc=${DOMAIN}")
+        DOMAIN="${OPTARG,,}"
+        SUFFIX="dc=${DOMAIN//./,dc=}"
         ;;
       D)
         BINDDN="${OPTARG}"
