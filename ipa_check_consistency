@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-readonly VERSION="16.2.4"
+readonly APP_VER="16.2.5"
 readonly APP_NAME="$(basename "$0")"
 readonly DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -26,7 +26,7 @@ LAST_COLUMN=11
 IFS=$'\n'
 
 display_version() {
-  printf "%s version %s\n" "$APP_NAME" "$VERSION"
+  printf "%s version %s\n" "$APP_NAME" "$APP_VER"
 }
 
 display_help() {
@@ -295,7 +295,8 @@ sudo_rules() {
 replication() {
   local server="" agreements="" state="" a="" max=0 i=""
   local dir="${TMP_DIR}/replication"
-  local suffix=$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")
+  local suffix=""
+  suffix=$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")
 
   mkdir -p "$dir"
 
@@ -346,7 +347,9 @@ update_cols() {
     [[ ${#server} -gt $max ]] && max=${#server}
   done
   max=$((max+4))
-  [[ $max -gt $MIDDLE_COLUMNS ]] && MIDDLE_COLUMNS=$max || true
+  if [[ $max -gt $MIDDLE_COLUMNS ]]; then
+    MIDDLE_COLUMNS=$max
+  fi
 }
 
 get_opts() {
