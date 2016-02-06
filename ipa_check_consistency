@@ -7,23 +7,36 @@
 # Author: Peter Pakos <peter.pakos@wandisco.com>
 
 set -euo pipefail
+IFS=$'\n'
 
-readonly APP_VER="16.2.5"
+readonly APP_VER="16.2.6"
 readonly APP_NAME="$(basename "$0")"
 readonly DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
-PASSWD_FILE="${DIR}/$(basename "$0").passwd"
+declare PASSWD_FILE="${DIR}/$(basename "$0").passwd"
 
-SERVERS=()
-DOMAIN=""
-SUFFIX=""
-BINDDN="cn=Directory Manager"
-BINDPW=""
-FIRST_COLUMN=20
-MIDDLE_COLUMNS=5
-LAST_COLUMN=11
+declare -a SERVERS
+declare DOMAIN
+declare SUFFIX
+declare BINDDN="cn=Directory Manager"
+declare BINDPW
+declare -i FIRST_COLUMN=20
+declare -i MIDDLE_COLUMNS=5
+declare -i LAST_COLUMN=11
 
-IFS=$'\n'
+die() {
+  local -i code="${1:-0}"
+  local msg="${2:-}"
+
+  if [[ -n "$msg" ]]; then
+    if [[ $code -eq 0 ]]; then
+      printf "%s\n" "$msg"
+    else
+      printf "%s\n" "$msg" >&2
+    fi
+  fi
+  exit $code
+}
 
 display_version() {
   printf "%s version %s\n" "$APP_NAME" "$APP_VER"
@@ -34,8 +47,8 @@ display_help() {
   cat <<HELP
 Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
--H  List of hosts (e.g. "server1 server2 server3")
--d  IPA domain (e.g. "ipa.domain.com")
+-H  List of hosts (e.g.: "server1 server2 server3")
+-d  IPA domain (e.g.: "ipa.domain.com")
 -s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
 -D  BIND DN (default: cn=Directory Manager)
 -W  BIND password (prompt for one if not supplied)
@@ -60,21 +73,22 @@ get_pass() {
 
 validate_pass() {
   if ! ldapwhoami -x -h "${SERVERS[1]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
-    printf "BIND unsuccessful, check details and try again.\n" >&2
-    exit 1
+    die 1 "BIND unsuccessful, check details and try again."
   fi
-  printf "\n"
 }
 
 hr() {
-  local len=$(( FIRST_COLUMN + ${#SERVERS[@]} * MIDDLE_COLUMNS + LAST_COLUMN ))
+  local -i len=$(( FIRST_COLUMN + ${#SERVERS[@]} * MIDDLE_COLUMNS + LAST_COLUMN ))
+  local -i i
 
-  printf "=%.0s" $(seq $len)
+  for((i=1; i<=len; i++)); do
+    printf "="
+  done
   printf "\n"
 }
 
 display_header() {
-  local server=""
+  local server
 
   printf "%-${FIRST_COLUMN}s" "FreeIPA servers:"
   for server in "${SERVERS[@]}"; do
@@ -95,11 +109,10 @@ is_consistent() {
 }
 
 anon_bind() {
-  local server="" state=""
+  local server state
   local dir="${TMP_DIR}/anon_bind"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
   for server in "${SERVERS[@]}"; do
     (
@@ -121,10 +134,10 @@ anon_bind() {
 }
 
 users() {
-  local server="" count=""
+  local server count
   local dir="${TMP_DIR}/users"
-  mkdir -p "$dir"
 
+  mkdir -p "$dir"
   printf "%-${FIRST_COLUMN}s" "Users"
   for server in "${SERVERS[@]}"; do
     (
@@ -144,11 +157,10 @@ users() {
 }
 
 groups() {
-  local server="" count=""
+  local server count
   local dir="${TMP_DIR}/groups"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "Groups"
   for server in "${SERVERS[@]}"; do
     (
@@ -168,11 +180,10 @@ groups() {
 }
 
 ldap_conflicts() {
-  local server="" conflicts=""
+  local server conflicts
   local dir="${TMP_DIR}/ldap_conflicts"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "LDAP conflicts"
   for server in "${SERVERS[@]}"; do
     (
@@ -197,11 +208,10 @@ ldap_conflicts() {
 }
 
 hosts() {
-  local server="" count=""
+  local server count
   local dir="${TMP_DIR}/hosts"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "Hosts"
   for server in "${SERVERS[@]}"; do
     (
@@ -221,11 +231,10 @@ hosts() {
 }
 
 hostgroups() {
-  local server="" count=""
+  local server count
   local dir="${TMP_DIR}/hostgroups"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "Hostgroups"
   for server in "${SERVERS[@]}"; do
     (
@@ -245,11 +254,10 @@ hostgroups() {
 }
 
 hbac_rules() {
-  local server="" count=""
+  local server count
   local dir="${TMP_DIR}/hbac_rules"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "HBAC rules"
   for server in "${SERVERS[@]}"; do
     (
@@ -269,11 +277,10 @@ hbac_rules() {
 }
 
 sudo_rules() {
-  local server="" count="" first_column=""
+  local server count first_column
   local dir="${TMP_DIR}/hbac_rules"
 
   mkdir -p "$dir"
-
   printf "%-${FIRST_COLUMN}s" "SUDO rules"
   for server in "${SERVERS[@]}"; do
     (
@@ -293,13 +300,12 @@ sudo_rules() {
 }
 
 replication() {
-  local server="" agreements="" state="" a="" max=0 i=""
+  local server agreements agreement state
+  local -i i max=0
   local dir="${TMP_DIR}/replication"
-  local suffix=""
-  suffix=$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")
+  local suffix="$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")"
 
   mkdir -p "$dir"
-
   for server in "${SERVERS[@]}"; do
     (
     if ! agreements=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
@@ -310,8 +316,8 @@ replication() {
       | sed -e "s/\.${DOMAIN}//g"); then
       state="FAIL"
     fi
-    for a in $agreements; do
-      printf "%s\n" "$a" >>"${dir}/${server}"
+    for agreement in $agreements; do
+      printf "%s\n" "$agreement" >>"${dir}/${server}"
     done
     ) &
   done
@@ -341,7 +347,7 @@ replication() {
 }
 
 update_cols() {
-  local max=0
+  local -i max=0
 
   for server in "${SERVERS[@]}"; do
     [[ ${#server} -gt $max ]] && max=${#server}
@@ -357,11 +363,11 @@ get_opts() {
     case $opt in
       v)
         display_version
-        exit 0
+        die 0
         ;;
       h)
         display_help
-        exit 0
+        die 0
         ;;
       d)
         DOMAIN="${OPTARG,,}"
@@ -379,8 +385,7 @@ get_opts() {
       p)
         PASSWD_FILE="${OPTARG}"
         if [[ ! -r "$PASSWD_FILE" ]]; then
-          printf "Unable to open password file %s, exiting.\n" "$PASSWD_FILE"
-          exit 1
+          die 1 "Unable to open password file ${PASSWD_FILE}, exiting."
         fi
         ;;
       H)
@@ -392,14 +397,14 @@ get_opts() {
       *)
         printf "Invalid option: %s\n\n" "$OPTARG"
         display_help
-        exit 1
+        die 1
         ;;
     esac
   done
 }
 
 check_vars() {
-  local fail=0
+  local -i fail=0
 
   if [[ ${#SERVERS[@]} -lt 1 ]]; then
     printf "Hosts not specified (-H)\n" >&2
@@ -413,7 +418,7 @@ check_vars() {
   if [[ $fail -ne 0 ]]; then
     printf "\n"
     display_help
-    exit 1
+    die 1
   fi
 }
 
