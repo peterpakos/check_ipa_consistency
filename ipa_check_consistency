@@ -9,31 +9,31 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.6"
+readonly APP_VER="16.2.8"
 readonly APP_NAME="$(basename "$0")"
-readonly DIR="$(cd "$(dirname "$0")" && pwd)"
+readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
-declare PASSWD_FILE="${DIR}/$(basename "$0").passwd"
+declare PASSWD_FILE="${APP_DIR}/$(basename "$0").passwd"
 
-declare -a SERVERS
-declare DOMAIN
-declare SUFFIX
+declare -a SERVERS=()
+declare DOMAIN=""
+declare SUFFIX=""
 declare BINDDN="cn=Directory Manager"
-declare BINDPW
+declare BINDPW=""
 declare -i FIRST_COLUMN=20
 declare -i MIDDLE_COLUMNS=5
-declare -i LAST_COLUMN=11
+declare -i LAST_COLUMN=5
+declare -i NAGIOS=0
+declare WARNING=1
+declare CRITICAL=2
+declare -i CHECKS_NO=8
 
 die() {
-  local -i code="${1:-0}"
-  local msg="${2:-}"
+  local msg="${1:-}"
+  local -i code=${2:-1}
 
   if [[ -n "$msg" ]]; then
-    if [[ $code -eq 0 ]]; then
-      printf "%s\n" "$msg"
-    else
-      printf "%s\n" "$msg" >&2
-    fi
+    printf "%s\n" "$msg" >&2
   fi
   exit $code
 }
@@ -53,9 +53,118 @@ AVAILABLE OPTIONS:
 -D  BIND DN (default: cn=Directory Manager)
 -W  BIND password (prompt for one if not supplied)
 -p  Password file (default: $(basename "$0").passwd)
+-n  Nagios plugin mode
+-w  Warning threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 1)
+-c  Critical threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
 -v  Print version number
 HELP
+}
+
+get_opts() {
+  while getopts ":vhd:D:W:s:p:H:nw:c:" opt; do
+    case $opt in
+      v)
+        display_version
+        exit 0
+        ;;
+      h)
+        display_help
+        exit 0
+        ;;
+      d)
+        DOMAIN="${OPTARG,,}"
+        SUFFIX="dc=${DOMAIN//./,dc=}"
+        ;;
+      D)
+        BINDDN="${OPTARG}"
+        ;;
+      W)
+        BINDPW="${OPTARG}"
+        ;;
+      s)
+        SUFFIX="${OPTARG}"
+        ;;
+      p)
+        PASSWD_FILE="${OPTARG}"
+        if [[ ! -r "$PASSWD_FILE" ]]; then
+          die "Unable to open password file ${PASSWD_FILE}, exiting."
+        fi
+        ;;
+      H)
+        IFS=" "
+        SERVERS=($OPTARG)
+        IFS=$'\n'
+        update_cols
+        ;;
+      n)
+        NAGIOS=1
+        ;;
+      w)
+        WARNING="${OPTARG}"
+        ;;
+      c)
+        CRITICAL="${OPTARG}"
+        ;;
+      :)
+        die "Option -${OPTARG} requires an argument"
+        ;;
+      *)
+        die "Invalid option -${OPTARG}"
+        ;;
+    esac
+  done
+}
+
+is_integer() {
+  local var="$1"
+
+  if [[ "$var" =~ ^[-+]?[0-9]+$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+check_vars() {
+  local -i fail=0
+
+  if [[ ${#SERVERS[@]} -lt 1 ]]; then
+    printf "Hosts not specified (-H)\n" >&2
+    fail=1
+  fi
+  if [[ -z "$DOMAIN" ]]; then
+    printf "IPA domain not specified (-d)\n" >&2
+    fail=1
+  fi
+  if is_integer "$WARNING"; then
+    if ! [[ $WARNING -ge 0 && $WARNING -le $CHECKS_NO ]]; then
+      printf "Warning threshold (-w) needs to be an integer between 1 and %i\n" $CHECKS_NO >&2
+      fail=1
+    fi
+  else
+    printf "Warning threshold (-w) needs to be an integer\n" >&2
+    fail=1
+  fi
+  if is_integer "$CRITICAL"; then
+    if ! [[ $CRITICAL -ge 0 && $CRITICAL -le $CRITICAL ]]; then
+      printf "Critical threshold (-c) needs to be an integer between 1 and %i\n" $CHECKS_NO >&2
+      fail=1
+    fi
+  else
+    printf "Critical threshold (-w) needs to be an integer\n" >&2
+    fail=1
+  fi
+  if is_integer "$CRITICAL" && is_integer "$WARNING"; then
+    if ! [[ $CRITICAL -ge $WARNING ]]; then
+      printf "Critical threshold (-c) needs to be greater than warning threshold (-w)\n" >&2
+      fail=1
+    fi
+  fi
+
+  if [[ $fail -ne 0 ]]; then
+    die
+  fi
 }
 
 get_pass() {
@@ -72,14 +181,14 @@ get_pass() {
 }
 
 validate_pass() {
-  if ! ldapwhoami -x -h "${SERVERS[1]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
-    die 1 "BIND unsuccessful, check details and try again."
+  if ! ldapwhoami -x -h "${SERVERS[0]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+    die "BIND unsuccessful, check connection details and try again."
   fi
 }
 
 hr() {
   local -i len=$(( FIRST_COLUMN + ${#SERVERS[@]} * MIDDLE_COLUMNS + LAST_COLUMN ))
-  local -i i
+  local -i i=0
 
   for((i=1; i<=len; i++)); do
     printf "="
@@ -88,13 +197,13 @@ hr() {
 }
 
 display_header() {
-  local server
+  local server=""
 
   printf "%-${FIRST_COLUMN}s" "FreeIPA servers:"
   for server in "${SERVERS[@]}"; do
     printf "%-${MIDDLE_COLUMNS}s" "$server"
   done
-  printf "%-${LAST_COLUMN}s\n" "Consistent?"
+  printf "%-${LAST_COLUMN}s\n" "STATE"
   hr
 }
 
@@ -102,39 +211,14 @@ is_consistent() {
   local dir="$1"
 
   if diff --from-file "$dir"/* &>/dev/null; then
-    printf "YES"
+    printf "OK"
   else
-    printf "NO"
+    printf "FAIL"
   fi
 }
 
-anon_bind() {
-  local server state
-  local dir="${TMP_DIR}/anon_bind"
-
-  mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
-  for server in "${SERVERS[@]}"; do
-    (
-    if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=config" "(cn=config)" \
-      "nsslapd-allow-anonymous-access" 2>/dev/null \
-      | awk -F'nsslapd-allow-anonymous-access: ' \
-      '/nsslapd-allow-anonymous-access/ {print $2}'); then
-      state="FAIL"
-    fi
-    printf "%s" "$state" > "${dir}/${server}"
-    ) &
-  done
-  wait
-  for server in "${SERVERS[@]}"; do
-    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
-  done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
-}
-
 users() {
-  local server count
+  local server="" count="" state=""
   local dir="${TMP_DIR}/users"
 
   mkdir -p "$dir"
@@ -153,11 +237,15 @@ users() {
   for server in "${SERVERS[@]}"; do
     printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
 }
 
 groups() {
-  local server count
+  local server="" count="" state=""
   local dir="${TMP_DIR}/groups"
 
   mkdir -p "$dir"
@@ -176,11 +264,123 @@ groups() {
   for server in "${SERVERS[@]}"; do
     printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+hosts() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/hosts"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "Hosts"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=computers,cn=accounts,${SUFFIX}" -s one \
+      "(fqdn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+hostgroups() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/hostgroups"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "Hostgroups"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=hostgroups,cn=accounts,${SUFFIX}" \
+      -s one "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+hbac_rules() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/hbac_rules"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "HBAC rules"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=hbac,${SUFFIX}" -s one \
+      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+sudo_rules() {
+  local server="" count="" first_column="" state=""
+  local dir="${TMP_DIR}/hbac_rules"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "SUDO rules"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
+      -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one \
+      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
+      count="FAIL"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
 }
 
 ldap_conflicts() {
-  local server conflicts
+  local server="" conflicts="" state=""
   local dir="${TMP_DIR}/ldap_conflicts"
 
   mkdir -p "$dir"
@@ -204,104 +404,51 @@ ldap_conflicts() {
   for server in "${SERVERS[@]}"; do
     printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
+  consistent="$(is_consistent "$dir")"
+  conflicts="$(<"${dir}/${SERVERS[0]}")"
+  if [[ "$consistent" == "OK" && "$conflicts" == "NO" ]]; then
+    state="OK"
+  else
+    state="FAIL"
+  fi
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
 }
 
-hosts() {
-  local server count
-  local dir="${TMP_DIR}/hosts"
+anon_bind() {
+  local server="" state=""
+  local dir="${TMP_DIR}/anon_bind"
 
   mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "Hosts"
+  printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=computers,cn=accounts,${SUFFIX}" -s one \
-      "(fqdn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+    if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+      -D "$BINDDN" -w "$BINDPW" -b "cn=config" "(cn=config)" \
+      "nsslapd-allow-anonymous-access" 2>/dev/null \
+      | awk -F'nsslapd-allow-anonymous-access: ' \
+      '/nsslapd-allow-anonymous-access/ {print $2}'); then
+      state="FAIL"
     fi
-    printf "%s" "$count" > "${dir}/${server}"
+    printf "%s" "$state" > "${dir}/${server}"
     ) &
   done
   wait
   for server in "${SERVERS[@]}"; do
     printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
   done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
-}
-
-hostgroups() {
-  local server count
-  local dir="${TMP_DIR}/hostgroups"
-
-  mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "Hostgroups"
-  for server in "${SERVERS[@]}"; do
-    (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=hostgroups,cn=accounts,${SUFFIX}" \
-      -s one "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
-    fi
-    printf "%s" "$count" > "${dir}/${server}"
-    ) &
-  done
-  wait
-  for server in "${SERVERS[@]}"; do
-    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
-  done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
-}
-
-hbac_rules() {
-  local server count
-  local dir="${TMP_DIR}/hbac_rules"
-
-  mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "HBAC rules"
-  for server in "${SERVERS[@]}"; do
-    (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=hbac,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
-    fi
-    printf "%s" "$count" > "${dir}/${server}"
-    ) &
-  done
-  wait
-  for server in "${SERVERS[@]}"; do
-    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
-  done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
-}
-
-sudo_rules() {
-  local server count first_column
-  local dir="${TMP_DIR}/hbac_rules"
-
-  mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "SUDO rules"
-  for server in "${SERVERS[@]}"; do
-    (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
-      -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
-    fi
-    printf "%s" "$count" > "${dir}/${server}"
-    ) &
-  done
-  wait
-  for server in "${SERVERS[@]}"; do
-    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
-  done
-  printf "%-${LAST_COLUMN}s\n" "$(is_consistent "$dir")"
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
 }
 
 replication() {
-  local server agreements agreement state
-  local -i i max=0
+  local server="" agreements="" agreement="" state=""
+  local -i i=0 max=0
   local dir="${TMP_DIR}/replication"
   local suffix="$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")"
 
@@ -358,70 +505,6 @@ update_cols() {
   fi
 }
 
-get_opts() {
-  while getopts ":vhd:D:W:s:p:H:" opt; do
-    case $opt in
-      v)
-        display_version
-        die 0
-        ;;
-      h)
-        display_help
-        die 0
-        ;;
-      d)
-        DOMAIN="${OPTARG,,}"
-        SUFFIX="dc=${DOMAIN//./,dc=}"
-        ;;
-      D)
-        BINDDN="${OPTARG}"
-        ;;
-      W)
-        BINDPW="${OPTARG}"
-        ;;
-      s)
-        SUFFIX="${OPTARG}"
-        ;;
-      p)
-        PASSWD_FILE="${OPTARG}"
-        if [[ ! -r "$PASSWD_FILE" ]]; then
-          die 1 "Unable to open password file ${PASSWD_FILE}, exiting."
-        fi
-        ;;
-      H)
-        IFS=" "
-        SERVERS=($OPTARG)
-        IFS=$'\n'
-        update_cols
-        ;;
-      *)
-        printf "Invalid option: %s\n\n" "$OPTARG"
-        display_help
-        die 1
-        ;;
-    esac
-  done
-}
-
-check_vars() {
-  local -i fail=0
-
-  if [[ ${#SERVERS[@]} -lt 1 ]]; then
-    printf "Hosts not specified (-H)\n" >&2
-    fail=1
-  fi
-  if [[ -z "$DOMAIN" ]]; then
-    printf "IPA domain not specified (-d)\n" >&2
-    fail=1
-  fi
-
-  if [[ $fail -ne 0 ]]; then
-    printf "\n"
-    display_help
-    die 1
-  fi
-}
-
 query_servers() {
   users > "$TMP_DIR/users.out" &
   groups > "$TMP_DIR/groups.out" &
@@ -451,15 +534,45 @@ cleanup() {
   rm -rf "$TMP_DIR"
 }
 
+nagios_check() {
+  local -i oks=$(grep -c "OK" "${TMP_DIR}/nagios")
+  local -i fails=$(( CHECKS_NO - oks ))
+  local msg=""
+  local -i code=3
+
+  if [[ $fails -ge 0 && $fails -lt $WARNING ]]; then
+    msg="OK"
+    code=0
+  elif [[ $fails -ge $WARNING && $fails -lt $CRITICAL ]]; then
+    msg="WARNING"
+    code=1
+  elif [[ $fails -ge $CRITICAL ]]; then
+    msg="CRITICAL"
+    code=2
+  else
+    msg="UNKNOWN"
+    code=3
+  fi
+  msg="${msg} - ${oks}/${CHECKS_NO} checks passed"
+	printf "%s\n" "$msg"
+  exit $code
+}
+
 main() {
   get_opts "$@"
   check_vars
   get_pass
   validate_pass
-  display_header
+  if [[ $NAGIOS -eq 0 ]]; then
+    display_header
+  fi
   query_servers
-  display_data
-  hr
+  if [[ $NAGIOS -eq 1 ]]; then
+    nagios_check
+  else
+    display_data
+    hr
+  fi
   cleanup
 }
 
