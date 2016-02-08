@@ -364,7 +364,7 @@ hbac_rules() {
 
 sudo_rules() {
   local server="" count="" first_column="" state=""
-  local dir="${TMP_DIR}/hbac_rules"
+  local dir="${TMP_DIR}/sudo_rules"
 
   mkdir -p "$dir"
   printf "%-${FIRST_COLUMN}s" "SUDO rules"
