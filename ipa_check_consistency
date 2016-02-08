@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.8"
+readonly APP_VER="16.2.8a"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -227,8 +227,10 @@ users() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=users,cn=accounts,${SUFFIX}" -s one \
-      "(uid=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      "(uid=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -254,8 +256,10 @@ groups() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=groups,cn=accounts,${SUFFIX}" -s one \
-      "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      "(cn=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -281,8 +285,10 @@ hosts() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=computers,cn=accounts,${SUFFIX}" -s one \
-      "(fqdn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      "(fqdn=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -308,8 +314,10 @@ hostgroups() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=hostgroups,cn=accounts,${SUFFIX}" \
-      -s one "(cn=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      -s one "(cn=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -335,8 +343,10 @@ hbac_rules() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=hbac,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      "(ipaUniqueID=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -362,8 +372,10 @@ sudo_rules() {
     (
     if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
       -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null | grep -c 'dn: '); then
-      count="FAIL"
+      "(ipaUniqueID=*)" "dn" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
+      | grep -c "^dn:"); then
+      count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -380,7 +392,7 @@ sudo_rules() {
 }
 
 ldap_conflicts() {
-  local server="" conflicts="" state=""
+  local server="" conflicts="" state="" consistent=""
   local dir="${TMP_DIR}/ldap_conflicts"
 
   mkdir -p "$dir"
@@ -390,7 +402,7 @@ ldap_conflicts() {
     if ! conflicts=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "${SUFFIX}" -s sub "nsds5ReplConflict=*" \* \
       "nsds5ReplConflict" 2>/dev/null); then
-      conflicts="FAIL"
+      conflicts="ERROR"
     fi
     if [[ -n "$conflicts" ]]; then
       conflicts="YES"
@@ -428,9 +440,10 @@ anon_bind() {
     if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
       -D "$BINDDN" -w "$BINDPW" -b "cn=config" "(cn=config)" \
       "nsslapd-allow-anonymous-access" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
       | awk -F'nsslapd-allow-anonymous-access: ' \
       '/nsslapd-allow-anonymous-access/ {print $2}'); then
-      state="FAIL"
+      state="ERROR"
     fi
     printf "%s" "$state" > "${dir}/${server}"
     ) &
@@ -457,8 +470,9 @@ replication() {
     (
     if ! agreements=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
       -w "$BINDPW" -b "cn=replica,cn=${suffix},\
-      cn=mapping tree,cn=config" -s one nsDS5ReplicaHost \
-      nsds5replicaLastUpdateStatus 2>/dev/null \
+      cn=mapping tree,cn=config" -s one "nsDS5ReplicaHost" \
+      "nsds5replicaLastUpdateStatus" 2>/dev/null \
+      | perl -p0e 's/\n //g' \
       | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
       | sed -e "s/\.${DOMAIN}//g"); then
       state="FAIL"
