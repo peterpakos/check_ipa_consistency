@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.8a"
+readonly APP_VER="16.2.10"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -217,6 +217,20 @@ is_consistent() {
   fi
 }
 
+query_ldap() {
+  local base="$1"
+  local filter="$2"
+  local attr="$3"
+  local scope="${4:-sub}"
+
+  ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+    -D "$BINDDN" -w "$BINDPW" -s "$scope" \
+    -b "$base" "$filter" "$attr" 2>/dev/null
+
+  return $?
+}
+
+
 users() {
   local server="" count="" state=""
   local dir="${TMP_DIR}/users"
@@ -225,11 +239,9 @@ users() {
   printf "%-${FIRST_COLUMN}s" "Users"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=users,cn=accounts,${SUFFIX}" -s one \
-      "(uid=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
-      | grep -c "^dn:"); then
+    if ! count=$(query_ldap "cn=users,cn=accounts,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
       count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
@@ -254,11 +266,9 @@ groups() {
   printf "%-${FIRST_COLUMN}s" "Groups"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=groups,cn=accounts,${SUFFIX}" -s one \
-      "(cn=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
-      | grep -c "^dn:"); then
+    if ! count=$(query_ldap "cn=groups,cn=accounts,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
       count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
@@ -283,11 +293,9 @@ hosts() {
   printf "%-${FIRST_COLUMN}s" "Hosts"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=computers,cn=accounts,${SUFFIX}" -s one \
-      "(fqdn=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
-      | grep -c "^dn:"); then
+    if ! count=$(query_ldap "cn=computers,cn=accounts,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
       count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
@@ -312,11 +320,9 @@ hostgroups() {
   printf "%-${FIRST_COLUMN}s" "Hostgroups"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=hostgroups,cn=accounts,${SUFFIX}" \
-      -s one "(cn=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
-      | grep -c "^dn:"); then
+    if ! count=$(query_ldap "cn=hostgroups,cn=accounts,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
       count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
@@ -341,10 +347,8 @@ hbac_rules() {
   printf "%-${FIRST_COLUMN}s" "HBAC rules"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=hbac,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
+    if ! count=$(query_ldap "cn=hbac,${SUFFIX}" \
+      "(ipaUniqueID=*)" "dn" "one" \
       | grep -c "^dn:"); then
       count="ERROR"
     fi
@@ -370,10 +374,8 @@ sudo_rules() {
   printf "%-${FIRST_COLUMN}s" "SUDO rules"
   for server in "${SERVERS[@]}"; do
     (
-    if ! count=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
-      -w "$BINDPW" -b "cn=sudorules,cn=sudo,${SUFFIX}" -s one \
-      "(ipaUniqueID=*)" "dn" 2>/dev/null \
-      | perl -p0e 's/\n //g' \
+    if ! count=$(query_ldap "cn=sudorules,cn=sudo,${SUFFIX}" \
+      "(ipaUniqueID=*)" "dn" "one" \
       | grep -c "^dn:"); then
       count="ERROR"
     fi
@@ -399,15 +401,15 @@ ldap_conflicts() {
   printf "%-${FIRST_COLUMN}s" "LDAP conflicts"
   for server in "${SERVERS[@]}"; do
     (
-    if ! conflicts=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "${SUFFIX}" -s sub "nsds5ReplConflict=*" \* \
-      "nsds5ReplConflict" 2>/dev/null); then
+    if ! conflicts=$(query_ldap "${SUFFIX}" "(nsds5ReplConflict=*)" \
+      "nsds5ReplConflict"); then
       conflicts="ERROR"
-    fi
-    if [[ -n "$conflicts" ]]; then
-      conflicts="YES"
     else
-      conflicts="NO"
+      if [[ -n "$conflicts" ]]; then
+        conflicts="YES"
+      else
+        conflicts="NO"
+      fi
     fi
     printf "%s" "$conflicts" > "${dir}/${server}"
     ) &
@@ -437,12 +439,10 @@ anon_bind() {
   printf "%-${FIRST_COLUMN}s" "Anonymous BIND"
   for server in "${SERVERS[@]}"; do
     (
-    if ! state=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" \
-      -D "$BINDDN" -w "$BINDPW" -b "cn=config" "(cn=config)" \
-      "nsslapd-allow-anonymous-access" 2>/dev/null \
+    if ! state=$(query_ldap "cn=config" "(cn=config)" \
+      "nsslapd-allow-anonymous-access" \
       | perl -p0e 's/\n //g' \
-      | awk -F'nsslapd-allow-anonymous-access: ' \
-      '/nsslapd-allow-anonymous-access/ {print $2}'); then
+      | awk '/nsslapd-allow-anonymous-access: / {print $2}'); then
       state="ERROR"
     fi
     printf "%s" "$state" > "${dir}/${server}"
@@ -468,10 +468,9 @@ replication() {
   mkdir -p "$dir"
   for server in "${SERVERS[@]}"; do
     (
-    if ! agreements=$(ldapsearch -LLLx -h "${server}.${DOMAIN}" -D "$BINDDN" \
-      -w "$BINDPW" -b "cn=replica,cn=${suffix},\
-      cn=mapping tree,cn=config" -s one "nsDS5ReplicaHost" \
-      "nsds5replicaLastUpdateStatus" 2>/dev/null \
+    if ! agreements=$(query_ldap \
+      "cn=replica,cn=${suffix},cn=mapping tree,cn=config" \
+      "nsDS5ReplicaHost" "nsds5replicaLastUpdateStatus" "one" \
       | perl -p0e 's/\n //g' \
       | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
       | sed -e "s/\.${DOMAIN}//g"); then
