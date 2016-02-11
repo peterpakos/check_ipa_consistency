@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.10"
+readonly APP_VER="16.2.11"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -47,7 +47,8 @@ display_help() {
   cat <<HELP
 Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
--H  List of hosts (e.g.: "server1 server2 server3")
+-H  List of IPA servers (e.g.: "server1 server2.domain server3")
+    Both short names and FQDNs are supported (FQDN if not within IPA domain).
 -d  IPA domain (e.g.: "ipa.domain.com")
 -s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
 -D  BIND DN (default: cn=Directory Manager)
@@ -74,7 +75,6 @@ get_opts() {
         ;;
       d)
         DOMAIN="${OPTARG,,}"
-        SUFFIX="dc=${DOMAIN//./,dc=}"
         ;;
       D)
         BINDDN="${OPTARG}"
@@ -127,7 +127,7 @@ is_integer() {
 }
 
 check_vars() {
-  local -i fail=0
+  local -i fail=0 i=0
 
   if [[ ${#SERVERS[@]} -lt 1 ]]; then
     printf "Hosts not specified (-H)\n" >&2
@@ -136,6 +136,10 @@ check_vars() {
   if [[ -z "$DOMAIN" ]]; then
     printf "IPA domain not specified (-d)\n" >&2
     fail=1
+  else
+    if [[ -z "$SUFFIX" ]]; then
+      SUFFIX="dc=${DOMAIN//./,dc=}"
+    fi
   fi
   if is_integer "$WARNING"; then
     if ! [[ $WARNING -ge 0 && $WARNING -le $CHECKS_NO ]]; then
@@ -165,6 +169,11 @@ check_vars() {
   if [[ $fail -ne 0 ]]; then
     die
   fi
+  for ((i=0; i<${#SERVERS[@]}; i++)); do
+    if ! [[ "${SERVERS[i]}" =~ \. ]]; then
+      SERVERS[i]="${SERVERS[i]}.${DOMAIN}"
+    fi
+  done
 }
 
 get_pass() {
@@ -181,7 +190,7 @@ get_pass() {
 }
 
 validate_pass() {
-  if ! ldapwhoami -x -h "${SERVERS[0]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+  if ! ldapwhoami -x -h "${SERVERS[0]}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
     die "BIND unsuccessful, check connection details and try again."
   fi
 }
@@ -201,6 +210,7 @@ display_header() {
 
   printf "%-${FIRST_COLUMN}s" "FreeIPA servers:"
   for server in "${SERVERS[@]}"; do
+    server="${server%%.*}"
     printf "%-${MIDDLE_COLUMNS}s" "$server"
   done
   printf "%-${LAST_COLUMN}s\n" "STATE"
@@ -223,7 +233,7 @@ query_ldap() {
   local attr="$3"
   local scope="${4:-sub}"
 
-  ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+  ldapsearch -LLLx -h "${server}" \
     -D "$BINDDN" -w "$BINDPW" -s "$scope" \
     -b "$base" "$filter" "$attr" 2>/dev/null
 
@@ -510,6 +520,7 @@ update_cols() {
   local -i max=0
 
   for server in "${SERVERS[@]}"; do
+    server="${server%%.*}"
     [[ ${#server} -gt $max ]] && max=${#server}
   done
   max=$((max+4))

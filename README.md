@@ -9,10 +9,11 @@ Any comments and improvement ideas are welcome.
 
 ## Usage
 ```
-$ ipa_check_consistency version 16.2.8
+ipa_check_consistency version 16.2.11
 Usage: ipa_check_consistency [OPTIONS]
 AVAILABLE OPTIONS:
--H  List of hosts (e.g.: "server1 server2 server3")
+-H  List of IPA servers (e.g.: "server1 server2.domain server3")
+    Both short names and FQDNs are supported (FQDN if not within IPA domain).
 -d  IPA domain (e.g.: "ipa.domain.com")
 -s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
 -D  BIND DN (default: cn=Directory Manager)
@@ -35,7 +36,7 @@ Users               224       224       224       224       224       OK
 Groups              50        50        50        50        50        OK
 Hosts               6         6         6         6         6         OK
 Hostgroups          1         1         1         1         1         OK
-HBAC rules          1         1         1         1         1         OK
+HBAC rules          3         3         3         3         3         OK
 SUDO rules          1         1         1         1         1         OK
 LDAP conflicts      NO        NO        NO        NO        NO        OK
 Anonymous BIND      on        on        on        on        on        OK
