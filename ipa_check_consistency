@@ -277,8 +277,8 @@ groups() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=groups,cn=accounts,${SUFFIX}" \
-      "(objectClass=*)" "numSubordinates" "base" \
-      | awk '/numSubordinates: / {print $2}'); then
+      "(objectClass=ipausergroup)" "dn" "one" \
+      | grep -c "^dn:"); then
       count="ERROR"
     fi
     printf "%s" "$count" > "${dir}/${server}"
