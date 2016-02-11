@@ -181,7 +181,7 @@ get_pass() {
 }
 
 validate_pass() {
-  if ! ldapwhoami -x -h "${SERVERS[0]}.${DOMAIN}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+  if ! ldapwhoami -x -h "${SERVERS[0]}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
     die "BIND unsuccessful, check connection details and try again."
   fi
 }
@@ -223,7 +223,7 @@ query_ldap() {
   local attr="$3"
   local scope="${4:-sub}"
 
-  ldapsearch -LLLx -h "${server}.${DOMAIN}" \
+  ldapsearch -LLLx -h "${server}" \
     -D "$BINDDN" -w "$BINDPW" -s "$scope" \
     -b "$base" "$filter" "$attr" 2>/dev/null
 
