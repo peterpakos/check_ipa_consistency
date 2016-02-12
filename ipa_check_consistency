@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.12a"
+readonly APP_VER="16.2.12b"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -190,9 +190,12 @@ get_pass() {
 }
 
 validate_pass() {
-  if ! ldapwhoami -x -h "${SERVERS[0]}" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
-    die "BIND unsuccessful, check connection details and try again."
+  for server in "${SERVERS[@]}"; do
+  if ldapwhoami -x -h "$server" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+    return 0
   fi
+  done
+  die "BIND failed to all servers, check connection details and try again."
 }
 
 hr() {
@@ -332,9 +335,10 @@ groups() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=groups,cn=accounts,${SUFFIX}" \
-      "(objectClass=ipausergroup)" "dn" "one" \
-      | grep -c "^dn:" || true); then
+      "(objectClass=ipausergroup)" "dn" "one"); then
       count="ERROR"
+    else
+      count=$(grep -c "^dn:" <<<"$count" || true)
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -413,9 +417,10 @@ hbac_rules() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=hbac,${SUFFIX}" \
-      "(ipaUniqueID=*)" "dn" "one" \
-      | grep -c "^dn:" || true); then
+      "(ipaUniqueID=*)" "dn" "one"); then
       count="ERROR"
+    else
+      count=$(grep -c "^dn:" <<<"$count" || true)
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -440,9 +445,10 @@ sudo_rules() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=sudorules,cn=sudo,${SUFFIX}" \
-      "(ipaUniqueID=*)" "dn" "one" \
-      | grep -c "^dn:" || true); then
+      "(ipaUniqueID=*)" "dn" "one"); then
       count="ERROR"
+    else
+      count=$(grep -c "^dn:" <<<"$count" || true)
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
@@ -467,9 +473,10 @@ dns_zones() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=dns,${SUFFIX}" \
-      "(objectClass=idnszone)" "dn" "one" \
-      | grep -c "^dn:" || true); then
+      "(objectClass=idnszone)" "dn" "one"); then
       count="ERROR"
+    else
+      count=$(grep -c "^dn:" <<<"$count" || true)
     fi
     printf "%s" "$count" > "${dir}/${server}"
     ) &
