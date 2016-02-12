@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.11"
+readonly APP_VER="16.2.12"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -26,7 +26,7 @@ declare -i LAST_COLUMN=5
 declare -i NAGIOS=0
 declare WARNING=1
 declare CRITICAL=2
-declare -i CHECKS_NO=8
+declare -i CHECKS_NO=10
 
 die() {
   local msg="${1:-}"
@@ -48,7 +48,7 @@ display_help() {
 Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
 -H  List of IPA servers (e.g.: "server1 server2.domain server3")
-    Both short names and FQDNs are supported (FQDN if not within IPA domain).
+    Both short names and FQDNs are supported (FQDN if not within IPA domain)
 -d  IPA domain (e.g.: "ipa.domain.com")
 -s  LDAP root suffix, if not domain based (default: "dc=ipa,dc=domain,dc=com")
 -D  BIND DN (default: cn=Directory Manager)
@@ -240,16 +240,71 @@ query_ldap() {
   return $?
 }
 
-
-users() {
+active_users() {
   local server="" count="" state=""
-  local dir="${TMP_DIR}/users"
+  local dir="${TMP_DIR}/active_users"
 
   mkdir -p "$dir"
-  printf "%-${FIRST_COLUMN}s" "Users"
+  printf "%-${FIRST_COLUMN}s" "Active users"
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=users,cn=accounts,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
+      count="ERROR"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+staged_users() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/staged_users"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "Stage users"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(query_ldap \
+      "cn=staged users,cn=accounts,cn=provisioning,${SUFFIX}" \
+      "(objectClass=*)" "numSubordinates" "base" \
+      | awk '/numSubordinates: / {print $2}'); then
+      count="ERROR"
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+  fi
+}
+
+preserved_users() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/preserved_users"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "Preserved users"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(query_ldap \
+      "cn=deleted users,cn=accounts,cn=provisioning,${SUFFIX}" \
       "(objectClass=*)" "numSubordinates" "base" \
       | awk '/numSubordinates: / {print $2}'); then
       count="ERROR"
@@ -530,7 +585,9 @@ update_cols() {
 }
 
 query_servers() {
-  users > "$TMP_DIR/users.out" &
+  active_users > "$TMP_DIR/active_users.out" &
+  staged_users > "$TMP_DIR/staged_users.out" &
+  preserved_users > "$TMP_DIR/preserved_users.out" &
   groups > "$TMP_DIR/groups.out" &
   hosts > "$TMP_DIR/hosts.out" &
   hostgroups > "$TMP_DIR/hostgroups.out" &
@@ -543,7 +600,9 @@ query_servers() {
 }
 
 display_data() {
-  printf "%s\n" "$(< "${TMP_DIR}/users.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/active_users.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/staged_users.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/preserved_users.out")"
   printf "%s\n" "$(< "${TMP_DIR}/groups.out")"
   printf "%s\n" "$(< "${TMP_DIR}/hosts.out")"
   printf "%s\n" "$(< "${TMP_DIR}/hostgroups.out")"
