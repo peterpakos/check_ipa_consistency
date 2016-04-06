@@ -674,6 +674,7 @@ nagios_check() {
   fi
   msg="${msg} - ${oks}/${CHECKS_NO} checks passed"
 	printf "%s\n" "$msg"
+  cleanup
   exit $code
 }
 
