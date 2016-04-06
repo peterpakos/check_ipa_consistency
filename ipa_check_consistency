@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.2.12b"
+readonly APP_VER="16.4.6"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -673,7 +673,7 @@ nagios_check() {
     code=3
   fi
   msg="${msg} - ${oks}/${CHECKS_NO} checks passed"
-	printf "%s\n" "$msg"
+  printf "%s\n" "$msg"
   cleanup
   exit $code
 }
