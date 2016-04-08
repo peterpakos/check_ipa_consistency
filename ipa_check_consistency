@@ -9,7 +9,7 @@
 set -euo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.4.6"
+readonly APP_VER="16.4.8"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -191,7 +191,7 @@ get_pass() {
 
 validate_pass() {
   for server in "${SERVERS[@]}"; do
-  if ldapwhoami -x -h "$server" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
+  if ldapwhoami -ZZ -x -h "$server" -D "$BINDDN" -w "$BINDPW" &>/dev/null; then
     return 0
   fi
   done
@@ -236,7 +236,7 @@ query_ldap() {
   local attr="$3"
   local scope="${4:-sub}"
 
-  ldapsearch -LLLx -h "${server}" \
+  ldapsearch -ZZ -LLLx -h "${server}" \
     -D "$BINDDN" -w "$BINDPW" -s "$scope" \
     -b "$base" "$filter" "$attr" 2>/dev/null
 
