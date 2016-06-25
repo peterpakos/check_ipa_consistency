@@ -6,7 +6,7 @@
 #
 # Author: Peter Pakos <peter.pakos@wandisco.com>
 
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n'
 
 readonly APP_VER="16.4.8"
@@ -16,10 +16,27 @@ readonly TMP_DIR="$(mktemp -d)"
 declare PASSWD_FILE="${APP_DIR}/$(basename "$0").passwd"
 
 declare -a SERVERS=()
+
+declare -A NAGIOSMSGS=( \
+                        ['users']='Active User consistency' \
+                        ['ustage']='Stage Users consistency' \
+                        ['upres']='Preserved Users consistency'
+                        ['ugroups']='User Groups consistency' \
+                        ['hosts']='Hosts consistency' \
+                        ['hgroups']='Host Groups consistency' \
+                        ['hbac']='HBAC Rules consistency' \
+                        ['sudo']='Sudo Rules consistency' \
+                        ['zones']='DNZ Zones consistency' \
+                        ['ldap']='LDAP conflicts' \
+                        ['bind']='Anonymous BIND' \
+                      )
+
+declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "ldap" "bind")
 declare DOMAIN=""
 declare SUFFIX=""
 declare BINDDN="cn=Directory Manager"
 declare BINDPW=""
+declare NAGIOSREPORT=""
 declare -i FIRST_COLUMN=20
 declare -i MIDDLE_COLUMNS=5
 declare -i LAST_COLUMN=5
@@ -55,6 +72,18 @@ AVAILABLE OPTIONS:
 -W  BIND password (prompt for one if not supplied)
 -p  Password file (default: $(basename "$0").passwd)
 -n  Nagios plugin mode
+    all     - all checks (-w and -c only relevant if -na used), default if incorrect value is passed
+    users   - Active User consistency
+    ustage  - Stage Users consistency
+    upres   - Preserved Users consistency
+    ugroups - User Groups consistency
+    hosts   - Hosts consistency
+    hgroups - Host Groups consistency
+    hbac    - HBAC Rules consistency
+    sudo    - Sudo Rules consistency
+    zones   - DNZ Zones consistency
+    ldap    - LDAP conflicts
+    bind    - Anonymous BIND
 -w  Warning threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 1)
 -c  Critical threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
@@ -62,8 +91,21 @@ AVAILABLE OPTIONS:
 HELP
 }
 
+function contains() {
+  local n=$#
+    local value=${!n}
+  for ((i=1;i < $#;i++)) {
+    if [ "${!i}" == "${value}" ]; then
+      echo "y"
+      return 0
+    fi
+  }
+  echo "n"
+  return 1
+}
+
 get_opts() {
-  while getopts ":vhd:D:W:s:p:H:nw:c:" opt; do
+  while getopts ":vhd:D:W:s:p:H:n:w:c:" opt; do
     case $opt in
       v)
         display_version
@@ -99,6 +141,12 @@ get_opts() {
         ;;
       n)
         NAGIOS=1
+        if [ $(contains "${NAGIOSOPTS[@]}" "${OPTARG}") == "y" ]; then
+          NAGIOSREPORT="${OPTARG}"
+        else
+          # if wrong type passed - assume all
+          NAGIOSREPORT="all"
+        fi
         ;;
       w)
         WARNING="${OPTARG}"
@@ -267,6 +315,9 @@ active_users() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "users" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -295,6 +346,9 @@ staged_users() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "ustage" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -323,6 +377,9 @@ preserved_users() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "upres" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -351,6 +408,9 @@ groups() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "ugroups" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -378,6 +438,9 @@ hosts() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "hosts" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -405,6 +468,9 @@ hostgroups() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "hgroups" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -433,6 +499,9 @@ hbac_rules() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "hbac" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -461,6 +530,9 @@ sudo_rules() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "sudo" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -489,6 +561,9 @@ dns_zones() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "zones" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -527,6 +602,9 @@ ldap_conflicts() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "ldap" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -555,6 +633,9 @@ anon_bind() {
   printf "%-${LAST_COLUMN}s\n" "$state"
   if [[ $NAGIOS -eq 1 ]]; then
     printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "bind" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
   fi
 }
 
@@ -654,28 +735,43 @@ cleanup() {
 }
 
 nagios_check() {
-  local -i oks=$(grep -c "OK" "${TMP_DIR}/nagios")
-  local -i fails=$(( CHECKS_NO - oks ))
   local msg=""
   local -i code=3
 
-  if [[ $fails -ge 0 && $fails -lt $WARNING ]]; then
-    msg="OK"
-    code=0
-  elif [[ $fails -ge $WARNING && $fails -lt $CRITICAL ]]; then
-    msg="WARNING"
-    code=1
-  elif [[ $fails -ge $CRITICAL ]]; then
-    msg="CRITICAL"
-    code=2
+  if [[ "$NAGIOSREPORT" == "all" ]]; then
+    local -i oks=$(grep -c "OK" "${TMP_DIR}/nagios")
+    local -i fails=$(( CHECKS_NO - oks ))
+    if [[ $fails -ge 0 && $fails -lt $WARNING ]]; then
+      msg="OK"
+      code=0
+    elif [[ $fails -ge $WARNING && $fails -lt $CRITICAL ]]; then
+      msg="WARNING"
+      code=1
+    elif [[ $fails -ge $CRITICAL ]]; then
+      msg="CRITICAL"
+      code=2
+    else
+      msg="UNKNOWN"
+      code=3
+    fi
+    msg="${msg} - ${oks}/${CHECKS_NO} checks passed"
+    printf "%s\n" "$msg"
+    cleanup
+    exit $code
   else
-    msg="UNKNOWN"
-    code=3
+    local -i oks=$(grep -c "OK" "${TMP_DIR}/$NAGIOSREPORT")
+    if [[ $oks -eq 1 ]]; then
+      msg="OK"
+      code=0
+    else
+      msg="CRITICAL"
+      code=2
+    fi
+    msg="${msg} - ${NAGIOSMSGS[$NAGIOSREPORT]}"
+    printf "%s\n" "$msg"
+    cleanup
+    exit $code
   fi
-  msg="${msg} - ${oks}/${CHECKS_NO} checks passed"
-  printf "%s\n" "$msg"
-  cleanup
-  exit $code
 }
 
 main() {
