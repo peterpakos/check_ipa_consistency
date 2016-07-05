@@ -5,11 +5,15 @@ It can now be used as a Nagios/Opsview plug-in (check -n, -w and -c  options).
 
 Please note, it's been only tested in FreeIPA 4.2 (Centos 7.2) environment.
 
+Requirements:
+* FreeIPA 4.2 or higher
+* bash v4.0 or higher
+
 Any comments and improvement ideas are welcome.
 
 ## Usage
 ```
-ipa_check_consistency version 16.2.12a
+ipa_check_consistency version 16.4.8
 Usage: ipa_check_consistency [OPTIONS]
 AVAILABLE OPTIONS:
 -H  List of IPA servers (e.g.: "server1 server2.domain server3")
@@ -20,6 +24,18 @@ AVAILABLE OPTIONS:
 -W  BIND password (prompt for one if not supplied)
 -p  Password file (default: ipa_check_consistency.passwd)
 -n  Nagios plugin mode
+    all     - all checks (-w and -c only relevant if -na used), default if incorrect value is passed
+    users   - Active User consistency
+    ustage  - Stage Users consistency
+    upres   - Preserved Users consistency
+    ugroups - User Groups consistency
+    hosts   - Hosts consistency
+    hgroups - Host Groups consistency
+    hbac    - HBAC Rules consistency
+    sudo    - Sudo Rules consistency
+    zones   - DNZ Zones consistency
+    ldap    - LDAP conflicts
+    bind    - Anonymous BIND
 -w  Warning threshold (0-11), number of failed checks before alerting (default: 1)
 -c  Critical threshold (0-11), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
@@ -49,8 +65,14 @@ Replication Status  ashb01 0  ashb02 0  ashb02 0  ashb01 0  ashb01 -1
 
 ## Nagios/Opsview plug-in mode
 ```
-$ ./ipa_check_consistency -H "shdc01 shdc02 ashb01 ashb02 frem01" -d ipa.wandisco.com -W '********' -n
+$ ./ipa_check_consistency -H "shdc01 shdc02 ashb01 ashb02 frem01" -d ipa.wandisco.com -W '********' -n all
 OK - 11/11 checks passed
+$ echo $?
+0
+```
+```
+$ ./ipa_check_consistency -H "shdc01 shdc02 ashb01 ashb02 frem01" -d ipa.wandisco.com -W '********' -n users
+OK - Active User consistency
 $ echo $?
 0
 ```
