@@ -3,11 +3,11 @@ The script checks consistency across FreeIPA servers.
 
 It can now be used as a Nagios/Opsview plug-in (check -n, -w and -c  options).
 
-Please note, it's been only tested in FreeIPA 4.2 (Centos 7.2) environment.
+Please note, it has only been tested in FreeIPA 4.2 (Centos 7.2) environment.
 
 Requirements:
 * FreeIPA 4.2 or higher
-* bash v4.0 or higher
+* Bash 4.0 or higher
 
 Any comments and improvement ideas are welcome.
 
