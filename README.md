@@ -44,23 +44,25 @@ AVAILABLE OPTIONS:
 
 ## Example
 ```
-FreeIPA servers:    shdc01    shdc02    ashb01    ashb02    frem01    STATE
-===========================================================================
-Active Users        223       223       223       223       223       OK
-Stage Users         1         1         1         1         1         OK
-Preserved Users     0         0         0         0         0         OK
-User Groups         50        50        50        50        50        OK
-Hosts               6         6         6         6         6         OK
-Host Groups         1         1         1         1         1         OK
-HBAC Rules          2         2         2         2         2         OK
-SUDO Rules          2         2         2         2         2         OK
-DNS Zones           4         4         4         4         4         OK
-LDAP Conflicts      NO        NO        NO        NO        NO        OK
-Anonymous BIND      on        on        on        on        on        OK
-Replication Status  ashb01 0  ashb02 0  ashb02 0  ashb01 0  ashb01 -1
-                    frem01 0  shdc01 0  frem01 0  shdc02 -1 shdc01 -1
-                    shdc02 0            shdc01 -1
-===========================================================================
+$ ./ipa_check_consistency -H "shdc01 shdc02 ashb01 ashb02 frem01 vadmz01" -d ipa.wandisco.com -W '********'
+FreeIPA servers:    shdc01     shdc02     ashb01     ashb02     frem01     vadmz01    STATE
+===========================================================================================
+Active Users        169        169        169        169        169        169        OK
+Stage Users         0          0          0          0          0          0          OK
+Preserved Users     0          0          0          0          0          0          OK
+User Groups         50         50         50         50         50         50         OK
+Hosts               22         22         22         22         22         22         OK
+Host Groups         2          2          2          2          2          2          OK
+HBAC Rules          3          3          3          3          3          3          OK
+SUDO Rules          2          2          2          2          2          2          OK
+DNS Zones           46         46         46         46         46         46         OK
+LDAP Conflicts      NO         NO         NO         NO         NO         NO         OK
+Anonymous BIND      on         on         on         on         on         on         OK
+Replication Status  shdc02 0   ashb01 0   shdc02 0   shdc02 0   shdc02 -1  ashb02 0
+                               ashb02 0              vadmz01 0
+                               frem01 0
+                               shdc01 0
+===========================================================================================
 ```
 
 ## Nagios/Opsview plug-in mode
