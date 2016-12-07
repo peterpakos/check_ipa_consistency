@@ -9,29 +9,12 @@
 set -eo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.4.8"
+readonly APP_VER="16.12.7"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
 declare PASSWD_FILE="${APP_DIR}/$(basename "$0").passwd"
-
 declare -a SERVERS=()
-
-declare -A NAGIOSMSGS=( \
-                        ['users']='Active User consistency' \
-                        ['ustage']='Stage Users consistency' \
-                        ['upres']='Preserved Users consistency'
-                        ['ugroups']='User Groups consistency' \
-                        ['hosts']='Hosts consistency' \
-                        ['hgroups']='Host Groups consistency' \
-                        ['hbac']='HBAC Rules consistency' \
-                        ['sudo']='Sudo Rules consistency' \
-                        ['zones']='DNZ Zones consistency' \
-                        ['ldap']='LDAP conflicts' \
-                        ['bind']='Anonymous BIND' \
-                      )
-
-declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "ldap" "bind")
 declare DOMAIN=""
 declare SUFFIX=""
 declare BINDDN="cn=Directory Manager"
@@ -43,7 +26,21 @@ declare -i LAST_COLUMN=5
 declare -i NAGIOS=0
 declare WARNING=1
 declare CRITICAL=2
-declare -i CHECKS_NO=11
+declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "ldap" "bind")
+declare -A NAGIOSMSGS=( \
+                        ['users']='Active Users' \
+                        ['ustage']='Stage Users' \
+                        ['upres']='Preserved Users'
+                        ['ugroups']='User Groups' \
+                        ['hosts']='Hosts' \
+                        ['hgroups']='Host Groups' \
+                        ['hbac']='HBAC Rules' \
+                        ['sudo']='SUDO Rules' \
+                        ['zones']='DNS Zones' \
+                        ['ldap']='LDAP Conflicts' \
+                        ['bind']='Anonymous BIND' \
+                      )
+declare -i CHECKS_NO=${#NAGIOSMSGS[@]}
 
 die() {
   local msg="${1:-}"
@@ -52,6 +49,7 @@ die() {
   if [[ -n "$msg" ]]; then
     printf "%s\n" "$msg" >&2
   fi
+
   exit $code
 }
 
@@ -93,14 +91,15 @@ HELP
 
 function contains() {
   local n=$#
-    local value=${!n}
+  local value=${!n}
+
   for ((i=1;i < $#;i++)) {
-    if [ "${!i}" == "${value}" ]; then
-      echo "y"
+    if [[ "${!i}" == "${value}" ]]; then
+      printf "y\n"
       return 0
     fi
   }
-  echo "n"
+  printf "n\n"
   return 1
 }
 
@@ -141,10 +140,9 @@ get_opts() {
         ;;
       n)
         NAGIOS=1
-        if [ $(contains "${NAGIOSOPTS[@]}" "${OPTARG}") == "y" ]; then
+        if [[ $(contains "${NAGIOSOPTS[@]}" "${OPTARG}") == "y" ]]; then
           NAGIOSREPORT="${OPTARG}"
         else
-          # if wrong type passed - assume all
           NAGIOSREPORT="all"
         fi
         ;;
@@ -228,7 +226,6 @@ get_pass() {
   if [[ -z "$BINDPW" ]]; then
     if [[ -r "$PASSWD_FILE" ]]; then
       BINDPW="$(<"$PASSWD_FILE")"
-      printf "BIND password loaded from file %s\n" "$(basename "$PASSWD_FILE")"
     else
       printf "%s password: " "${BINDDN#cn=}"
       read -rs BINDPW
