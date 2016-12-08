@@ -13,7 +13,6 @@ Any comments and improvement ideas are welcome.
 
 ## Usage
 ```
-ipa_check_consistency version 16.4.8
 Usage: ipa_check_consistency [OPTIONS]
 AVAILABLE OPTIONS:
 -H  List of IPA servers (e.g.: "server1 server2.domain server3")
@@ -25,21 +24,20 @@ AVAILABLE OPTIONS:
 -p  Password file (default: ipa_check_consistency.passwd)
 -n  Nagios plugin mode
     all     - all checks (-w and -c only relevant if -na used), default if incorrect value is passed
-    users   - Active User consistency
-    ustage  - Stage Users consistency
-    upres   - Preserved Users consistency
-    ugroups - User Groups consistency
-    hosts   - Hosts consistency
-    hgroups - Host Groups consistency
-    hbac    - HBAC Rules consistency
-    sudo    - Sudo Rules consistency
-    zones   - DNZ Zones consistency
-    ldap    - LDAP conflicts
+    users   - Active Users
+    ustage  - Stage Users
+    upres   - Preserved Users
+    ugroups - User Groups
+    hosts   - Hosts
+    hgroups - Host Groups
+    hbac    - HBAC Rules
+    sudo    - SUDO Rules
+    zones   - DNS Zones
+    ldap    - LDAP Conflicts
     bind    - Anonymous BIND
 -w  Warning threshold (0-11), number of failed checks before alerting (default: 1)
 -c  Critical threshold (0-11), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
--v  Print version number
 ```
 
 ## Example
