@@ -58,6 +58,7 @@ SUDO Rules          2          2          2          2          2          2    
 DNS Zones           46         46         46         46         46         46         OK
 LDAP Conflicts      NO         NO         NO         NO         NO         NO         OK
 Anonymous BIND      on         on         on         on         on         on         OK
+Ghost Replicas      2          2          2          2          2          2          FAIL
 Replication Status  shdc02 0   ashb01 0   shdc02 0   shdc02 0   shdc02 -1  ashb02 0
                                ashb02 0              vadmz01 0
                                frem01 0
