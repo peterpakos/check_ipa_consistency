@@ -34,10 +34,12 @@ AVAILABLE OPTIONS:
     sudo    - SUDO Rules
     zones   - DNS Zones
     ldap    - LDAP Conflicts
+    ghosts  - Ghost Replicas
     bind    - Anonymous BIND
--w  Warning threshold (0-11), number of failed checks before alerting (default: 1)
--c  Critical threshold (0-11), number of failed checks before alerting (default: 2)
+-w  Warning threshold (0-12), number of failed checks before alerting (default: 1)
+-c  Critical threshold (0-12), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
+-v  Print version number
 ```
 
 ## Example
