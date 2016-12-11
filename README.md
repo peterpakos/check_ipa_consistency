@@ -57,12 +57,12 @@ HBAC Rules          3          3          3          3          3          3    
 SUDO Rules          2          2          2          2          2          2          OK
 DNS Zones           46         46         46         46         46         46         OK
 LDAP Conflicts      NO         NO         NO         NO         NO         NO         OK
-Anonymous BIND      on         on         on         on         on         on         OK
-Ghost Replicas      2          2          2          2          2          2          FAIL
-Replication Status  shdc02 0   ashb01 0   shdc02 0   shdc02 0   shdc02 -1  ashb02 0
-                               ashb02 0              vadmz01 0
-                               frem01 0
-                               shdc01 0
+Ghost Replicas      NO         NO         NO         NO         NO         NO         OK
+Anonymous BIND      YES        YES        YES        YES        YES        YES        OK
+Replication Status  ashb01 0   shdc01 0   shdc01 0   shdc01 0   shdc01 0   ashb02 0
+                    ashb02 0                         vadmz01 0
+                    frem01 0
+                    shdc02 0
 ===========================================================================================
 ```
 

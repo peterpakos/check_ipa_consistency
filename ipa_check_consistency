@@ -621,6 +621,11 @@ anon_bind() {
       | awk '/nsslapd-allow-anonymous-access: / {print $2}'); then
       state="ERROR"
     fi
+    if [[ "$state" == "on" ]]; then
+      state="YES"
+    elif [[ "$state" == "off" ]]; then
+      state="NO"
+    fi
     printf "%s" "$state" > "${dir}/${server}"
     ) &
   done
@@ -769,8 +774,8 @@ display_data() {
   printf "%s\n" "$(< "${TMP_DIR}/sudo_rules.out")"
   printf "%s\n" "$(< "${TMP_DIR}/dns_zones.out")"
   printf "%s\n" "$(< "${TMP_DIR}/ldap_conflicts.out")"
-  printf "%s\n" "$(< "${TMP_DIR}/anon_bind.out")"
   printf "%s\n" "$(< "${TMP_DIR}/ghost_replicas.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/anon_bind.out")"
   printf "%s\n" "$(< "${TMP_DIR}/replication.out")"
 }
 
