@@ -1,9 +1,9 @@
 # ipa_check_consistency
-The script checks consistency across FreeIPA servers.
+The tool checks consistency across FreeIPA servers.
 
-It can now be used as a Nagios/Opsview plug-in (check -n, -w and -c  options).
+It can also be used as a Nagios/Opsview plug-in (check -n, -w and -c  options).
 
-Please note, it has only been tested in FreeIPA 4.2 (Centos 7.2) environment.
+The tool has been tested in FreeIPA 4.2/4.3/4.4 (Centos 7.2/7.3, Fedora 24) environments.
 
 Requirements:
 * FreeIPA 4.2 or higher
@@ -13,6 +13,7 @@ Any comments and improvement ideas are welcome.
 
 ## Usage
 ```
+$ ./ipa_check_consistency -h
 Usage: ipa_check_consistency [OPTIONS]
 AVAILABLE OPTIONS:
 -H  List of IPA servers (e.g.: "server1 server2.domain server3")
