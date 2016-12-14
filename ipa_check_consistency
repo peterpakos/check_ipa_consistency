@@ -9,7 +9,7 @@
 set -eo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.12.11"
+readonly APP_VER="16.12.14"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -617,7 +617,6 @@ anon_bind() {
     (
     if ! state=$(query_ldap "cn=config" "(cn=config)" \
       "nsslapd-allow-anonymous-access" \
-      | perl -p0e 's/\n //g' \
       | awk '/nsslapd-allow-anonymous-access: / {print $2}'); then
       state="ERROR"
     fi
@@ -655,10 +654,10 @@ replication() {
     if ! agreements=$(query_ldap \
       "cn=replica,cn=${suffix},cn=mapping tree,cn=config" \
       "nsDS5ReplicaHost" "nsds5replicaLastUpdateStatus" "one" \
-      | perl -p0e 's/\n //g' \
+      | sed -e 's/Error (//' -e 's/)//' \
       | awk '{if ($0 ~ /nsDS5ReplicaHost/) printf("%s",$2); if ($0 ~ /nsds5replicaLastUpdateStatus/) printf(" %s\n",$2)}' \
       | sed -e "s/\.${DOMAIN}//g"); then
-      state="FAIL"
+      agreements="ERROR"
     fi
     for agreement in $agreements; do
       printf "%s\n" "$agreement" >>"${dir}/${server}"
@@ -685,8 +684,11 @@ replication() {
         line=""
       fi
       printf "%-${MIDDLE_COLUMNS}s" "$line"
+      if [[ "$line" == "ERROR" ]]; then
+        state="FAIL"
+      fi
     done
-    printf "\n"
+    printf "%-${LAST_COLUMN}s\n" "$state"
   done
 }
 
@@ -702,10 +704,10 @@ ghost_replicas() {
       query_ldap "${SUFFIX}" "(&(objectclass=nstombstone)(nsUniqueId=ffffffff-ffffffff-ffffffff-ffffffff))" \
       "nscpentrywsi" \
       | grep nsds50ruv \
-      | grep 'replica ' \
-      | grep -cv ldap || true); then
+      | grep 'replica '); then
       ghost_replicas="ERROR"
     else
+      ghost_replicas=$(grep -vc ldap <<<"$ghost_replicas" || true)
       if [[ $ghost_replicas -eq 0 ]]; then
         ghost_replicas="NO"
       fi
