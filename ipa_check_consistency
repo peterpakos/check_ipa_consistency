@@ -544,7 +544,8 @@ dns_zones() {
   for server in "${SERVERS[@]}"; do
     (
     if ! count=$(query_ldap "cn=dns,${SUFFIX}" \
-      "(objectClass=idnszone)" "dn" "one"); then
+      "(|(objectClass=idnszone)(objectClass=idnsforwardzone))" \
+      "dn" "one"); then
       count="ERROR"
     else
       count=$(grep -c "^dn:" <<<"$count" || true)
