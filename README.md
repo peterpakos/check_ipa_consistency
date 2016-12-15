@@ -56,7 +56,7 @@ Hosts               22         22         22         22         22         22   
 Host Groups         2          2          2          2          2          2          OK
 HBAC Rules          3          3          3          3          3          3          OK
 SUDO Rules          2          2          2          2          2          2          OK
-DNS Zones           46         46         46         46         46         46         OK
+DNS Zones           94         94         94         94         94         94         OK
 LDAP Conflicts      NO         NO         NO         NO         NO         NO         OK
 Ghost Replicas      NO         NO         NO         NO         NO         NO         OK
 Anonymous BIND      YES        YES        YES        YES        YES        YES        OK
