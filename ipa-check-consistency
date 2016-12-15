@@ -1,0 +1,94 @@
+#!/usr/bin/python
+
+"""
+The script checks consistency across FreeIPA servers.
+Put BIND password in to ipa_check_consistency.passwd file to stop password
+prompts.
+
+Author: Peter Pakos <peter.pakos@wandisco.com>
+Pythonized by: Martin Basti <mbasti@redhat.com>
+"""
+
+from __future__ import print_function
+from __future__ import absolute_import
+
+from pprint import pprint
+import logging
+import argparse
+import getpass
+
+from ipa_consistency_checker.checker import Checker
+
+logger = logging.getLogger(__name__)
+
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument(
+    '-H', '--hostname',
+    dest='hostname',
+    help=('Hostname of IPA server (e.g.: server1, server2.domain) '
+          'Both short names and FQDNs are supported (FQDN if not within '
+          'IPA domain). This option can be used multiple times.'),
+    action='append',
+    default=None,
+)
+parser.add_argument(
+    '-W', '--password',
+    dest='ask_password',
+    help='prompt for BIND password',
+    action='store_true',
+    default=False,
+)
+parser.add_argument(
+    '-n',
+    dest='enabled_plugins',
+    help=('Nagios plugin mode (all checks by default). This option can be '
+          'used multiple times.\n{}'.format(Checker.plugins_help())),
+    choices=Checker.plugins(),
+    action='append',
+    default=None,
+)
+parser.add_argument(
+    '--debug',
+    dest='debug',
+    help='enabling debug level logging',
+    action='store_true',
+    default=False,
+)
+
+
+def main():
+    """
+    Main program
+    """
+    # parse options
+    args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+
+    hostnames = args.hostname
+    if hostnames is None:
+        hostnames = ['localhost']
+
+    if args.ask_password:
+        password = getpass.getpass('Directory manager password: ')
+    else:
+        password = 'test'
+
+    if args.enabled_plugins is None:
+        enabled_plugins = Checker.plugins()
+    else:
+        enabled_plugins = args.enabled_plugins
+
+    plugins = [(name, {}) for name in enabled_plugins]  # {} empty options
+    logger.debug("enabled plugins: %r", plugins)
+    checker = Checker()
+
+    result = checker(hostnames, password, plugins)
+
+    print("Results:")
+    pprint(result)
+
+
+if __name__ == '__main__':
+    main()
