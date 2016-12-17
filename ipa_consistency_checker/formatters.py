@@ -30,6 +30,8 @@ from pprint import pprint
 import six
 from six import StringIO
 
+import yaml
+
 from .registry import FormatterRegistry
 
 
@@ -71,3 +73,12 @@ class PythonFormatter(Formatter):
         output = StringIO()
         pprint(data, stream=output)
         return output.getvalue()
+
+
+@FormatterRegistry.register('yaml', description="YAML format")
+class YAMLFormatter(Formatter):
+    """
+    Print output in YAML format
+    """
+    def format_output(self, data):
+        return yaml.dump(data)
