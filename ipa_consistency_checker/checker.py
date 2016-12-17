@@ -28,7 +28,7 @@ import time
 from multiprocessing import Process, Queue
 from six.moves import queue
 
-from .registry import Registry
+from .registry import CheckerRegistry
 
 # Load all plugins, yes ugly but works
 # pylint: disable=wildcard-import,unused-wildcard-import
@@ -36,7 +36,6 @@ from .plugins import *
 # pylint: enable=wildcard-import,unused-wildcard-import
 
 logger = logging.getLogger(__name__)
-register = Registry()
 
 class CheckerWorker(Process):
     """
@@ -56,7 +55,8 @@ class CheckerWorker(Process):
         return_state = {}
 
         for plugin_name, options in self.plugins:
-            instance = Registry.get_plugin(plugin_name)(None, **options)
+            instance = CheckerRegistry.get_plugin(plugin_name)(
+                None, **options)
             result = instance.execute()
             return_state[plugin_name] = result
 
@@ -72,7 +72,7 @@ class Checker(object):
         """Get list of available plugins (plugin names)
         :return: list of plugin names
         """
-        return list(register)
+        return list(CheckerRegistry.iter_names())
 
     @staticmethod
     def plugins_help():
@@ -81,8 +81,8 @@ class Checker(object):
         :return: help message
         """
         items = (
-            "{:10} - {}".format(name, Registry.get_description(name))
-            for name in sorted(register)
+            "{:10} - {}".format(name, CheckerRegistry.get_description(name))
+            for name in sorted(CheckerRegistry.iter_names())
         )
         return '\n'.join(items)
 

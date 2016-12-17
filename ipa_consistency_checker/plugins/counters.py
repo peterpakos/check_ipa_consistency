@@ -24,12 +24,10 @@ Checker plugins which works as counters - count number of entries in LDAP
 from __future__ import absolute_import
 
 from ipa_consistency_checker.plugins.absplugin import LDAPPlugin
-from ipa_consistency_checker.registry import Registry
-
-register = Registry()
+from ipa_consistency_checker.registry import CheckerRegistry
 
 
-@register('users', description='Active users')
+@CheckerRegistry.register('users', description='Active users')
 class UsersCount(LDAPPlugin):
     """
     Count number of active users
