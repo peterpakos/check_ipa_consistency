@@ -143,7 +143,7 @@ class Checker(object):
         )
         return '\n'.join(items)
 
-    def __call__(self, servers, plugins, ldapconfig, wait=120):
+    def __call__(self, servers, plugins, ldapconfig, wait=30):
         """
 
         :param servers: list of servers
@@ -157,7 +157,7 @@ class Checker(object):
         results = {}
         workers = set()
 
-        def get_data(queue_wait=2):
+        def get_data(queue_wait=0.2):
             """Collect data from queue added by workers
             :param queue_wait: time how long wait for new data (blocking)
             """
@@ -194,7 +194,7 @@ class Checker(object):
 
         logger.debug("Cleanup ...")
         for w in workers:
-            w.join(1)
+            w.join(0.1)
             if w.is_alive():
                 logger.error("terminating process %r", w)
                 w.terminate()
