@@ -31,6 +31,7 @@ from ipa_consistency_checker.registry import CheckerRegistry
 
 logger = logging.getLogger(__name__)
 
+
 @CheckerRegistry.register('users', description='Active users')
 class ActiveUsers(LDAPPlugin):
     """
