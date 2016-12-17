@@ -92,7 +92,9 @@ class CheckerWorker(Process):
 
         for plugin_name, options in self.plugins:
             instance = CheckerRegistry.get_plugin(plugin_name)(
-                ldap_conn, **options)
+                ldap_conn,
+                suffix=self.ldapconfig['suffix'],  # plugins needs this
+                **options)
             try:
                 result = instance.execute()
             except ldap.LDAPError as e:
