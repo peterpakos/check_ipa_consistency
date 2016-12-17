@@ -47,3 +47,20 @@ class ActiveUsers(LDAPPlugin):
         logger.debug("Result: %r", result)
         assert len(result) == 1, "Unexpected number of results"
         return int(result[0][1]['numSubordinates'][0])
+
+
+@CheckerRegistry.register('hosts', description='Hosts')
+class Hosts(LDAPPlugin):
+    """
+    Count number of hosts
+    """
+    def execute(self):
+        result = self.conn.search_s(
+            'cn=computers,cn=accounts,{suffix}'.format(
+                suffix=self.options['suffix']),
+            ldap.SCOPE_BASE,
+            attrlist=['numSubordinates']
+        )
+        logger.debug("Result: %r", result)
+        assert len(result) == 1, "Unexpected number of results"
+        return int(result[0][1]['numSubordinates'][0])
