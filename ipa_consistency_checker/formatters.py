@@ -31,8 +31,9 @@ import six
 from six import StringIO
 
 import yaml
+from tabulate import tabulate
 
-from .registry import FormatterRegistry
+from .registry import FormatterRegistry, CheckerRegistry
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -82,3 +83,24 @@ class YAMLFormatter(Formatter):
     """
     def format_output(self, data):
         return yaml.dump(data)
+
+
+@FormatterRegistry.register('table', description="Table format")
+class TableFormatter(Formatter):
+    """
+    Print output in table
+    """
+    def format_output(self, data):
+        plugins = tuple(CheckerRegistry.iter_names())
+        servers = tuple(data.keys())
+        header = ('Servers:',) + servers + ('STATUS',)
+        table = []
+        for name in plugins:
+            line = [CheckerRegistry.get_description(name)]
+            for server in servers:
+                item = data[server].get(name, 'N/A')
+                line.append(item)
+            line.append('')  # status
+            table.append(line)
+
+        return tabulate(table, headers=header)

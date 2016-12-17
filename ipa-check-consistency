@@ -116,7 +116,7 @@ parser.add_argument(
     dest='output_format',
     help='Output format of data.\n{}'.format(FormatterRegistry.get_help()),
     action='store',
-    default='python',
+    default='table',
     choices=list(FormatterRegistry.iter_names()),
 )
 parser.add_argument(
