@@ -28,7 +28,7 @@ import time
 from multiprocessing import Process, Queue
 from six.moves import queue
 
-from .plugins.absplugin import Registry
+from .registry import Registry
 
 # Load all plugins, yes ugly but works
 # pylint: disable=wildcard-import,unused-wildcard-import
