@@ -28,6 +28,8 @@ import time
 from multiprocessing import Process, Queue
 from six.moves import queue
 
+import ldap
+
 from .registry import CheckerRegistry
 
 # Load all plugins, yes ugly but works
@@ -37,30 +39,83 @@ from .plugins import *
 
 logger = logging.getLogger(__name__)
 
+
 class CheckerWorker(Process):
     """
     Subprocess, runs checks per one server
     """
 
-    def __init__(self, parent_queue, server, password, plugins):
+    def __init__(self, parent_queue, server, plugins, ldapconfig):
+        """
+        :param parent_queue:
+        :param server:
+        :param plugins:
+        :param ldapconfig:
+        required keys:
+           - suffix
+           - password
+           - binddn
+        """
         super(CheckerWorker, self).__init__(name=server)
         self.queue = parent_queue
         self.server = server
-        self.password = password
         self.plugins = plugins
+        self.ldapconfig = ldapconfig
         self.log = logging.getLogger(
             "{}.{}".format("worker", self.server))
 
-    def run(self):
+    def _open_connection(self):
+        """Create and open an LDAP connection
+        :return: LDAP connection
+        """
+        uri = 'ldap://{}:389'.format(self.server)
+        conn = ldap.initialize(uri)
+
+        if self.ldapconfig['tls']:
+            # enable TLS
+            if self.ldapconfig['cacert'] is not None:
+                ldap.set_option(ldap.OPT_X_TLS_CACERTFILE,
+                                self.ldapconfig['cacert'])
+            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, True)
+            conn.set_option(ldap.OPT_X_TLS_DEMAND, True)
+
+        conn.simple_bind_s(
+            self.ldapconfig['binddn'], self.ldapconfig['password'])
+        return conn
+
+    def _run_plugins(self, ldap_conn):
+        """Execute plugins
+        :param ldap_conn:
+        :return:
+        """
         return_state = {}
 
         for plugin_name, options in self.plugins:
             instance = CheckerRegistry.get_plugin(plugin_name)(
-                None, **options)
-            result = instance.execute()
+                ldap_conn, **options)
+            try:
+                result = instance.execute()
+            except ldap.LDAPError as e:
+                msg = 'LDAP: {}'.format(e)
+                self.log.error(msg)
+                result = {'error': msg}
             return_state[plugin_name] = result
 
-        self.queue.put((self.server, return_state))
+        return return_state
+
+    def run(self):
+        try:
+            ldap_conn = self._open_connection()
+        except ldap.LDAPError as e:
+            msg = "Cannot connect to LDAP: {}".format(e)
+            self.log.error(msg)
+            self.queue.put((self.server, {'error': msg}))
+        else:
+            try:
+                return_state = self._run_plugins(ldap_conn)
+                self.queue.put((self.server, return_state))
+            finally:
+                ldap_conn.unbind_s()
 
 
 class Checker(object):
@@ -86,7 +141,16 @@ class Checker(object):
         )
         return '\n'.join(items)
 
-    def __call__(self, servers, password, plugins, wait=120):
+    def __call__(self, servers, plugins, ldapconfig, wait=120):
+        """
+
+        :param servers: list of servers
+        :param plugins: iterable with plugin names and its config
+        format: [(name, dict), ...]
+        :param ldapconfig: dict with LDAP connection settings
+        :param wait:
+        :return:
+        """
         q = Queue()
         results = {}
         workers = set()
@@ -106,7 +170,7 @@ class Checker(object):
 
         logger.debug("Starting subprocesses ...")
         for server in servers:
-            w = CheckerWorker(q, server, password, plugins)
+            w = CheckerWorker(q, server, plugins, ldapconfig)
             workers.add(w)
             w.start()
 

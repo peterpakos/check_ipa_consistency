@@ -34,6 +34,7 @@ from __future__ import absolute_import
 import logging
 import argparse
 import getpass
+import os
 
 from ipa_consistency_checker.checker import Checker
 from ipa_consistency_checker.registry import FormatterRegistry
@@ -61,6 +62,45 @@ parser.add_argument(
     help='prompt for BIND password',
     action='store_true',
     default=False,
+)
+parser.add_argument(
+    '-s', '--suffix',
+    dest='suffix',
+    help='LDAP root suffix (default: "dc=ipa,dc=domain,dc=com")',
+    action='store',
+    default='dc=ipa,dc=domain,dc=com',
+)
+parser.add_argument(
+    '-D', '--binddn',
+    dest='binddn',
+    help='BIND DN (default: cn=Directory Manager)',
+    action='store',
+    default='cn=Directory Manager',
+)
+parser.add_argument(
+    ('--no-tls-I-know-what-I-am-doing-I-am-aware-that-password-is-transported'
+     '-unencrypted-over-network-and-I-am-fine-with-that'),
+    dest='tls',
+    help='Disable TLS',
+    action='store_false',
+    default=True,
+)
+
+
+def check_file(dummy, path):
+    """Check if file exists in argparser"""
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError("File not found: {}".format(path))
+parser.add_argument(
+    '--cacert',
+    dest='cacert',
+    metavar='FILE',
+    help='CA certificate file used for TLS connection',
+    action='store',
+    default=None,
+    type=check_file,
 )
 parser.add_argument(
     '-n',
@@ -112,11 +152,20 @@ def main():
     else:
         enabled_plugins = args.enabled_plugins
 
+    # configuration of LDAP connection passed to each worker
+    ldapconfig = {
+        'password': password,
+        'suffix': args.suffix,
+        'binddn': args.binddn,
+        'cacert': args.cacert,
+        'tls': args.tls,
+    }
+
     plugins = [(name, {}) for name in enabled_plugins]  # {} empty options
     logger.debug("enabled plugins: %r", plugins)
     checker = Checker()
 
-    result = checker(hostnames, password, plugins)
+    result = checker(hostnames, plugins, ldapconfig)
 
     # process output
     logger.debug("Output formatter: %s", args.output_format)
