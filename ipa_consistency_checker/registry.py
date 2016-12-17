@@ -25,6 +25,7 @@ import abc
 import six
 
 _registry_checker = {}
+_registry_formatter = {}
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -94,9 +95,28 @@ class Registry(object):
         """
         return cls._storage[name]['description']
 
+    @classmethod
+    def get_help(cls):
+        """Generates help message in format
+        plugin name - plugin description
+        :return: help message
+        """
+        items = (
+            "{:10} - {}".format(name, cls.get_description(name))
+            for name in sorted(cls.iter_names())
+        )
+        return '\n'.join(items)
+
 
 class CheckerRegistry(Registry):
     """
     Register for checker plugins
     """
     _storage = _registry_checker
+
+
+class FormatterRegistry(Registry):
+    """
+    Register for formatter plugins
+    """
+    _storage = _registry_formatter

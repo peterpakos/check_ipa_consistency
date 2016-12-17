@@ -31,12 +31,17 @@ Pythonized by: Martin Basti <mbasti@redhat.com>
 from __future__ import print_function
 from __future__ import absolute_import
 
-from pprint import pprint
 import logging
 import argparse
 import getpass
 
 from ipa_consistency_checker.checker import Checker
+from ipa_consistency_checker.registry import FormatterRegistry
+
+# Load all plugins, yes ugly but works
+# pylint: disable=wildcard-import,unused-wildcard-import
+from ipa_consistency_checker.formatters import *
+# pylint: enable=wildcard-import,unused-wildcard-import
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +70,14 @@ parser.add_argument(
     choices=Checker.plugins(),
     action='append',
     default=None,
+)
+parser.add_argument(
+    '--format',
+    dest='output_format',
+    help='Output format of data.\n{}'.format(FormatterRegistry.get_help()),
+    action='store',
+    default='python',
+    choices=list(FormatterRegistry.iter_names()),
 )
 parser.add_argument(
     '--debug',
@@ -105,8 +118,11 @@ def main():
 
     result = checker(hostnames, password, plugins)
 
-    print("Results:")
-    pprint(result)
+    # process output
+    logger.debug("Output formatter: %s", args.output_format)
+    plugin = FormatterRegistry.get_plugin(args.output_format)
+    formatter = plugin()
+    formatter.print(result)
 
 
 if __name__ == '__main__':
