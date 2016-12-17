@@ -124,25 +124,6 @@ class Checker(object):
     """
     Manages workers and collects states from all servers
     """
-    @staticmethod
-    def plugins():
-        """Get list of available plugins (plugin names)
-        :return: list of plugin names
-        """
-        return list(CheckerRegistry.iter_names())
-
-    @staticmethod
-    def plugins_help():
-        """Generates help message in format
-        plugin name - plugin description
-        :return: help message
-        """
-        items = (
-            "{:10} - {}".format(name, CheckerRegistry.get_description(name))
-            for name in sorted(CheckerRegistry.iter_names())
-        )
-        return '\n'.join(items)
-
     def __call__(self, servers, plugins, ldapconfig, wait=30):
         """
 

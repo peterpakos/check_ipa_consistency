@@ -106,8 +106,8 @@ parser.add_argument(
     '-n',
     dest='enabled_plugins',
     help=('Nagios plugin mode (all checks by default). This option can be '
-          'used multiple times.\n{}'.format(Checker.plugins_help())),
-    choices=Checker.plugins(),
+          'used multiple times.\n{}'.format(CheckerRegistry.get_help())),
+    choices=list(CheckerRegistry.iter_names()),
     action='append',
     default=None,
 )
@@ -150,7 +150,7 @@ def main():
         password = 'test'
 
     if args.enabled_plugins is None:
-        enabled_plugins = Checker.plugins()
+        enabled_plugins = CheckerRegistry.iter_names()
     else:
         enabled_plugins = args.enabled_plugins
 
