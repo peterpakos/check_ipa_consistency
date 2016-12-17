@@ -21,24 +21,36 @@ Plugins register
 """
 
 from __future__ import absolute_import
+import abc
+import six
 
-_registry = {}
+_registry_checker = {}
 
 
+@six.add_metaclass(abc.ABCMeta)
 class Registry(object):
     """A decorator for registering plugins
 
     Usage:
 
-        register = Registry()
-
-        @register()
+        @Registry.register(test, description="Test Plugin")
         class plugin(...):
             ...
 
     """
+    @classmethod
+    @abc.abstractproperty
+    def _storage(cls):
+        return None
 
-    def __call__(self, name, description=None):
+    @classmethod
+    def register(cls, name, description=None):
+        """
+        Will register checker plugin
+        :param name: name of checker plugin
+        :param description: description of checker plugin
+        :return:
+        """
         def register(plugin):
             """
             Register the plugin ``plugin``.
@@ -47,32 +59,44 @@ class Registry(object):
             """
 
             # error if this exact class was already registered:
-            if name in _registry:
+            if name in _registry_checker:
                 raise RuntimeError("Duplicated name {}:{!r}".format(
                     name, plugin))
 
             # The plugin is okay, add to _registry:
-            _registry[name] = dict(plugin=plugin, description=description)
+            cls._storage[name] = dict(
+                plugin=plugin, description=description)
 
             return plugin
 
         return register
 
-    def __iter__(self):
-        return iter(_registry)
+    @classmethod
+    def iter_names(cls):
+        """Return iterator for checker plugins
+        :return: interator
+        """
+        return iter(cls._storage)
 
-    @staticmethod
-    def get_plugin(name):
+    @classmethod
+    def get_plugin(cls, name):
         """Returns plugin reference
         :param name: plugin name
         :return: reference to plugin class
         """
-        return _registry[name]['plugin']
+        return cls._storage[name]['plugin']
 
-    @staticmethod
-    def get_description(name):
+    @classmethod
+    def get_description(cls, name):
         """Returns plugin description
         :param name: plugin name
         :return: textual description
         """
-        return _registry[name]['description']
+        return cls._storage[name]['description']
+
+
+class CheckerRegistry(Registry):
+    """
+    Register for checker plugins
+    """
+    _storage = _registry_checker
