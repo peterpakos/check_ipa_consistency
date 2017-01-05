@@ -101,3 +101,11 @@ class Hosts(Counter):
     Count number of hosts
     """
     container = 'cn=computers,cn=accounts'
+
+
+@CheckerRegistry.register('hgroups', description='Host groups')
+class HostGroups(Counter):
+    """
+    Count number of host groups
+    """
+    container = 'cn=hostgroups,cn=accounts'
