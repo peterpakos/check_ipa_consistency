@@ -151,3 +151,13 @@ class HBACRules(Counter):
     container = 'cn=hbac'
     ldapfilter = '(ipaUniqueID=*)'
     count_entries = True
+
+
+@CheckerRegistry.register('sudo', description='SUDO rules')
+class SUDORules(Counter):
+    """
+    Count number of SUDO rules
+    """
+    container = 'cn=sudorules,cn=sudo'
+    ldapfilter = '(ipaUniqueID=*)'
+    count_entries = True
