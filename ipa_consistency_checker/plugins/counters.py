@@ -161,3 +161,13 @@ class SUDORules(Counter):
     container = 'cn=sudorules,cn=sudo'
     ldapfilter = '(ipaUniqueID=*)'
     count_entries = True
+
+
+@CheckerRegistry.register('zones', description='DNS zones')
+class DNSZones(Counter):
+    """
+    Count number of DNS zones
+    """
+    container = 'cn=dns'
+    ldapfilter = '(|(objectClass=idnszone)(objectClass=idnsforwardzone))'
+    count_entries = True
