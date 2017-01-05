@@ -79,6 +79,14 @@ class ActiveUsers(Counter):
     container = 'cn=users,cn=accounts'
 
 
+@CheckerRegistry.register('ustage', description='Stage users')
+class StageUsers(Counter):
+    """
+    Count number of stage users
+    """
+    container = 'cn=staged users,cn=accounts,cn=provisioning'
+
+
 @CheckerRegistry.register('hosts', description='Hosts')
 class Hosts(Counter):
     """
