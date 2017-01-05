@@ -23,8 +23,10 @@ Checker plugins which works as counters - count number of entries in LDAP
 
 from __future__ import absolute_import
 
+import abc
 import logging
 import ldap
+import six
 
 from ipa_consistency_checker.plugins.absplugin import LDAPPlugin
 from ipa_consistency_checker.registry import CheckerRegistry
@@ -32,35 +34,54 @@ from ipa_consistency_checker.registry import CheckerRegistry
 logger = logging.getLogger(__name__)
 
 
+@six.add_metaclass(abc.ABCMeta)
+class Counter(LDAPPlugin):
+    """
+    Base class for counter plugins. Implements the logic.
+    Subclasses must specifiy only 'container'
+
+    Optional attributes:
+      'ldapfilter': filter as string
+    """
+    ldapfilter = '(objectClass=*)'
+
+    @abc.abstractproperty
+    def container(self):
+        """Container where entries are located
+        for example: 'cn=users,cn=accounts'
+        :return: container as string
+        """
+        return None
+
+    def execute(self):
+        result = self.conn.search_s(
+            '{container},{suffix}'.format(
+                container=self.container,
+                suffix=self.options['suffix']),
+            ldap.SCOPE_BASE,
+            filterstr=self.ldapfilter,
+            attrlist=['numSubordinates']
+        )
+        logger.debug("Result: %r", result)
+        if len(result) != 1:
+            logger.warning(
+                "Unexpected number of results: %d, %s",
+                len(result), self.container
+            )
+        return int(result[0][1]['numSubordinates'][0])
+
+
 @CheckerRegistry.register('users', description='Active users')
-class ActiveUsers(LDAPPlugin):
+class ActiveUsers(Counter):
     """
     Count number of active users
     """
-    def execute(self):
-        result = self.conn.search_s(
-            'cn=users,cn=accounts,{suffix}'.format(
-                suffix=self.options['suffix']),
-            ldap.SCOPE_BASE,
-            attrlist=['numSubordinates']
-        )
-        logger.debug("Result: %r", result)
-        assert len(result) == 1, "Unexpected number of results"
-        return int(result[0][1]['numSubordinates'][0])
+    container = 'cn=users,cn=accounts'
 
 
 @CheckerRegistry.register('hosts', description='Hosts')
-class Hosts(LDAPPlugin):
+class Hosts(Counter):
     """
     Count number of hosts
     """
-    def execute(self):
-        result = self.conn.search_s(
-            'cn=computers,cn=accounts,{suffix}'.format(
-                suffix=self.options['suffix']),
-            ldap.SCOPE_BASE,
-            attrlist=['numSubordinates']
-        )
-        logger.debug("Result: %r", result)
-        assert len(result) == 1, "Unexpected number of results"
-        return int(result[0][1]['numSubordinates'][0])
+    container = 'cn=computers,cn=accounts'
