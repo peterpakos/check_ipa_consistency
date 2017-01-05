@@ -117,6 +117,16 @@ class PreservedUsers(Counter):
     container = 'cn=deleted users,cn=accounts,cn=provisioning'
 
 
+@CheckerRegistry.register('ugroups', description='User groups')
+class UserGroups(Counter):
+    """
+    Count number of user groups
+    """
+    container = 'cn=groups,cn=accounts'
+    ldapfilter = '(objectClass=ipausergroup)'
+    count_entries = True
+
+
 @CheckerRegistry.register('hosts', description='Hosts')
 class Hosts(Counter):
     """
