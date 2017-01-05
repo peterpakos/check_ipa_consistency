@@ -42,8 +42,12 @@ class Counter(LDAPPlugin):
 
     Optional attributes:
       'ldapfilter': filter as string
+      'count_entries': if True, ONELEVEL scope is used and number of entries
+        in result is counted, otherwise BASE scope with 'numSubordinates' is
+        used
     """
     ldapfilter = '(objectClass=*)'
+    count_entries = False
 
     @abc.abstractproperty
     def container(self):
@@ -53,7 +57,19 @@ class Counter(LDAPPlugin):
         """
         return None
 
-    def execute(self):
+    def _onelevel(self):
+        result = self.conn.search_s(
+            '{container},{suffix}'.format(
+                container=self.container,
+                suffix=self.options['suffix']),
+            ldap.SCOPE_ONELEVEL,
+            filterstr=self.ldapfilter,
+            attrlist=['dn']
+        )
+        logger.debug("Result: %r", result)
+        return len(result)
+
+    def _base(self):
         result = self.conn.search_s(
             '{container},{suffix}'.format(
                 container=self.container,
@@ -69,6 +85,12 @@ class Counter(LDAPPlugin):
                 len(result), self.container
             )
         return int(result[0][1]['numSubordinates'][0])
+
+    def execute(self):
+        if self.count_entries:
+            return self._onelevel()
+        else:
+            return self._base()
 
 
 @CheckerRegistry.register('users', description='Active users')
