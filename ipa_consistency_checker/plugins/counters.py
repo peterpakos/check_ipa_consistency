@@ -141,3 +141,13 @@ class HostGroups(Counter):
     Count number of host groups
     """
     container = 'cn=hostgroups,cn=accounts'
+
+
+@CheckerRegistry.register('hbac', description='HBAC rules')
+class HBACRules(Counter):
+    """
+    Count number of HBAC rules
+    """
+    container = 'cn=hbac'
+    ldapfilter = '(ipaUniqueID=*)'
+    count_entries = True
