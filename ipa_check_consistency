@@ -9,7 +9,7 @@
 set -eo pipefail
 IFS=$'\n'
 
-readonly APP_VER="16.12.15"
+readonly APP_VER="17.1.6"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -415,7 +415,7 @@ groups() {
 
 hosts() {
   local server="" count="" state=""
-  local dir="${TMP_DIR}/hosts"
+  local dir="${TMP_DIR}/nhosts"
 
   mkdir -p "$dir"
   printf "%-${FIRST_COLUMN}s" "Hosts"
@@ -754,7 +754,7 @@ query_servers() {
   staged_users > "$TMP_DIR/staged_users.out" &
   preserved_users > "$TMP_DIR/preserved_users.out" &
   groups > "$TMP_DIR/groups.out" &
-  hosts > "$TMP_DIR/hosts.out" &
+  hosts > "$TMP_DIR/nhosts.out" &
   hostgroups > "$TMP_DIR/hostgroups.out" &
   hbac_rules > "$TMP_DIR/hbac_rules.out" &
   sudo_rules > "$TMP_DIR/sudo_rules.out" &
@@ -771,7 +771,7 @@ display_data() {
   printf "%s\n" "$(< "${TMP_DIR}/staged_users.out")"
   printf "%s\n" "$(< "${TMP_DIR}/preserved_users.out")"
   printf "%s\n" "$(< "${TMP_DIR}/groups.out")"
-  printf "%s\n" "$(< "${TMP_DIR}/hosts.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/nhosts.out")"
   printf "%s\n" "$(< "${TMP_DIR}/hostgroups.out")"
   printf "%s\n" "$(< "${TMP_DIR}/hbac_rules.out")"
   printf "%s\n" "$(< "${TMP_DIR}/sudo_rules.out")"
