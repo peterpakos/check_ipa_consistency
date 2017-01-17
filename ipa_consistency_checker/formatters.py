@@ -25,12 +25,12 @@ from __future__ import print_function
 
 import abc
 import sys
+import yaml
 from pprint import pprint
 
 import six
 from six import StringIO
 
-import yaml
 from tabulate import tabulate
 
 from .registry import FormatterRegistry, CheckerRegistry

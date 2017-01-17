@@ -24,11 +24,10 @@ from __future__ import absolute_import
 
 import logging
 import time
+import ldap
 
 from multiprocessing import Process, Queue
 from six.moves import queue
-
-import ldap
 
 from .registry import CheckerRegistry
 
