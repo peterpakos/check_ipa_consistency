@@ -1,10 +1,11 @@
 language: python
-python:
-  - "2.7"
-  - "3.3"
-  - "3.4"
-  - "3.5"
+matrix:
+  include:
+  - python: 2.7
+    env: TOX_ENV=py27
+  - python: 3.5
+    env: TOX_ENV=py35
 install:
- - pip install pylint six pyldap pyaml tabulate
+ - pip install tox
 script:
- - pylint ipa-check-consistency ipa_consistency_checker/
+ - tox -e $TOX_ENV
