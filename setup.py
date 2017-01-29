@@ -18,12 +18,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="ipa-check-consistency",
     version="17.1.17",
-    packages=['ipa_consistency_checker'],
+    packages=find_packages(),
 
     scripts=['ipa-check-consistency'],
 

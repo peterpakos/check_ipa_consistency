@@ -86,3 +86,10 @@ OK - Active User consistency
 $ echo $?
 0
 ```
+
+## Testing
+Install and run `tox`
+
+```
+$ pip install tox
+$ tox

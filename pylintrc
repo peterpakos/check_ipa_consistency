@@ -18,7 +18,8 @@ persistent=no
 enable=python3
 disable=I,
      invalid-name,
-     too-few-public-methods
+     too-few-public-methods,
+     too-many-arguments,
 
 
 [REPORTS]
