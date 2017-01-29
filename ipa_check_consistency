@@ -26,6 +26,7 @@ readonly APP_VER="17.1.29"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
+# shellcheck disable=SC2034,SC2155
 declare PASSWD_FILE="${APP_DIR}/$(basename "$0").passwd"
 declare -a SERVERS=()
 declare DOMAIN=""
@@ -64,7 +65,7 @@ die() {
     printf "%s\n" "$msg" >&2
   fi
 
-  exit $code
+  exit "$code"
 }
 
 display_version() {
@@ -204,7 +205,7 @@ check_vars() {
   fi
   if is_integer "$WARNING"; then
     if ! [[ $WARNING -ge 0 && $WARNING -le $CHECKS_NO ]]; then
-      printf "Warning threshold (-w) needs to be an integer between 1 and %i\n" $CHECKS_NO >&2
+      printf "Warning threshold (-w) needs to be an integer between 1 and %i\n" "$CHECKS_NO" >&2
       fail=1
     fi
   else
@@ -213,7 +214,7 @@ check_vars() {
   fi
   if is_integer "$CRITICAL"; then
     if ! [[ $CRITICAL -ge 0 && $CRITICAL -le $CRITICAL ]]; then
-      printf "Critical threshold (-c) needs to be an integer between 1 and %i\n" $CHECKS_NO >&2
+      printf "Critical threshold (-c) needs to be an integer between 1 and %i\n" "$CHECKS_NO" >&2
       fail=1
     fi
   else
@@ -660,6 +661,7 @@ replication() {
   local server="" agreements="" agreement="" state=""
   local -i i=0 max=0
   local dir="${TMP_DIR}/replication"
+  # shellcheck disable=SC2155
   local suffix="$(sed -e 's@=@\\3D@g' -e 's@,@\\,@g' <<<"$SUFFIX")"
 
   mkdir -p "$dir"
@@ -804,6 +806,7 @@ nagios_check() {
   local -i code=3
 
   if [[ "$NAGIOSREPORT" == "all" ]]; then
+    # shellcheck disable=SC2155
     local -i oks=$(grep -c "OK" "${TMP_DIR}/nagios")
     local -i fails=$(( CHECKS_NO - oks ))
     if [[ $fails -ge 0 && $fails -lt $WARNING ]]; then
@@ -824,6 +827,7 @@ nagios_check() {
     cleanup
     exit $code
   else
+    # shellcheck disable=SC2155
     local -i oks=$(grep -c "OK" "${TMP_DIR}/$NAGIOSREPORT")
     if [[ $oks -eq 1 ]]; then
       msg="OK"
