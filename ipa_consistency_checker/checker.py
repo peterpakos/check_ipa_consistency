@@ -24,9 +24,9 @@ from __future__ import absolute_import
 
 import logging
 import time
-import ldap
-
 from multiprocessing import Process, Queue
+
+import ldap
 from six.moves import queue
 
 from .registry import CheckerRegistry
@@ -73,10 +73,15 @@ class CheckerWorker(Process):
         if self.ldapconfig['tls']:
             # enable TLS
             if self.ldapconfig['cacert'] is not None:
-                ldap.set_option(ldap.OPT_X_TLS_CACERTFILE,
-                                self.ldapconfig['cacert'])
-            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, True)
-            conn.set_option(ldap.OPT_X_TLS_DEMAND, True)
+                ldap.set_option(
+                    ldap.OPT_X_TLS_CACERTFILE,  # pylint: disable=no-member
+                    self.ldapconfig['cacert'])
+            ldap.set_option(
+                ldap.OPT_X_TLS_REQUIRE_CERT,  # pylint: disable=no-member
+                True)
+            conn.set_option(
+                ldap.OPT_X_TLS_DEMAND,  # pylint: disable=no-member
+                True)
 
         conn.simple_bind_s(
             self.ldapconfig['binddn'], self.ldapconfig['password'])
@@ -96,7 +101,7 @@ class CheckerWorker(Process):
                 **options)
             try:
                 result = instance.execute()
-            except ldap.LDAPError as e:
+            except ldap.LDAPError as e:  # pylint: disable=no-member
                 msg = 'LDAP: {}'.format(e)
                 self.log.error(msg)
                 result = {'error': msg}
@@ -107,7 +112,7 @@ class CheckerWorker(Process):
     def run(self):
         try:
             ldap_conn = self._open_connection()
-        except ldap.LDAPError as e:
+        except ldap.LDAPError as e:  # pylint: disable=no-member
             msg = "Cannot connect to LDAP: {}".format(e)
             self.log.error(msg)
             self.queue.put((self.server, {'error': msg}))

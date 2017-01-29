@@ -62,7 +62,7 @@ class Counter(LDAPPlugin):
             '{container},{suffix}'.format(
                 container=self.container,
                 suffix=self.options['suffix']),
-            ldap.SCOPE_ONELEVEL,
+            ldap.SCOPE_ONELEVEL,  # pylint: disable=no-member
             filterstr=self.ldapfilter,
             attrlist=['dn']
         )
@@ -74,7 +74,7 @@ class Counter(LDAPPlugin):
             '{container},{suffix}'.format(
                 container=self.container,
                 suffix=self.options['suffix']),
-            ldap.SCOPE_BASE,
+            ldap.SCOPE_BASE,  # pylint: disable=no-member
             filterstr=self.ldapfilter,
             attrlist=['numSubordinates']
         )

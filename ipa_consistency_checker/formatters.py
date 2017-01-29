@@ -25,9 +25,9 @@ from __future__ import print_function
 
 import abc
 import sys
-import yaml
 from pprint import pprint
 
+import yaml
 import six
 from six import StringIO
 
