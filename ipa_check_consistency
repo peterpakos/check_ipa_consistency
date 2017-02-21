@@ -191,7 +191,7 @@ is_integer() {
 get_hosts() {
   local domain="$1"
 
-  if printf "$(dig +short "_ldap._tcp.${domain}" SRV | awk '{print $4}' | sed -e "s/\.$//" | sort | xargs)"; then
+  if printf "%s" "$(dig +short "_ldap._tcp.${domain}" SRV | awk '{print $4}' | sed -e "s/\.$//" | sort | xargs)"; then
     return 0
   else
     printf "Failed while detecting IPA servers in LDAP\n" >&2
