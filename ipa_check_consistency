@@ -22,7 +22,7 @@
 set -eo pipefail
 IFS=$'\n'
 
-readonly APP_VER="17.2.21"
+readonly APP_VER="17.2.21a"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -189,9 +189,17 @@ is_integer() {
 }
 
 get_hosts() {
-  local domain="$1"
+  local domain="$1" hosts=""
 
-  if printf "%s" "$(dig +short "_ldap._tcp.${domain}" SRV | awk '{print $4}' | sed -e "s/\.$//" | sort | xargs)"; then
+  if type dig &>/dev/null; then
+    hosts=$(dig +short "_ldap._tcp.${domain}" SRV | awk '{print $4}')
+  elif type nslookup &>/dev/null; then
+    hosts=$(nslookup -q=SRV "_ldap._tcp.${domain}" | awk '/_ldap._tcp./ {print $7}')
+  else
+    hosts=$(host -t SRV "_ldap._tcp.${domain}" | awk '{print $8}')
+  fi
+
+  if printf "%s" "$(sed -e "s/\.$//" <<<"$hosts" | sort | xargs)"; then
     return 0
   else
     printf "Failed while detecting IPA servers in LDAP\n" >&2
