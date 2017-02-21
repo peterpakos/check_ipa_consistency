@@ -45,25 +45,25 @@ AVAILABLE OPTIONS:
 
 ## Example
 ```
-$ ./ipa_check_consistency -H "shdc01 shdc02 ashb01 ashb02 frem01 vadmz01" -d ipa.wandisco.com -W '********'
-FreeIPA servers:    shdc01     shdc02     ashb01     ashb02     frem01     vadmz01    STATE
+$ ./ipa_check_consistency -d ipa.wandisco.com -W '********'
+FreeIPA servers:    ashb01     ashb02     frem01     shdc01     shdc02     vadmz01    STATE
 ===========================================================================================
-Active Users        169        169        169        169        169        169        OK
+Active Users        173        173        173        173        173        173        OK
 Stage Users         0          0          0          0          0          0          OK
 Preserved Users     0          0          0          0          0          0          OK
-User Groups         50         50         50         50         50         50         OK
-Hosts               22         22         22         22         22         22         OK
+User Groups         51         51         51         51         51         51         OK
+Hosts               26         26         26         26         26         26         OK
 Host Groups         2          2          2          2          2          2          OK
 HBAC Rules          3          3          3          3          3          3          OK
 SUDO Rules          2          2          2          2          2          2          OK
-DNS Zones           94         94         94         94         94         94         OK
+DNS Zones           95         95         95         95         95         95         OK
 LDAP Conflicts      NO         NO         NO         NO         NO         NO         OK
 Ghost Replicas      NO         NO         NO         NO         NO         NO         OK
 Anonymous BIND      YES        YES        YES        YES        YES        YES        OK
-Replication Status  ashb01 0   shdc01 0   shdc01 0   shdc01 0   shdc01 0   ashb02 0
-                    ashb02 0                         vadmz01 0
-                    frem01 0
-                    shdc02 0
+Replication Status  ashb02 0   ashb01 0   ashb01 0   ashb01 0   ashb01 0   ashb02 0
+                    frem01 0   shdc01 0   shdc01 0   ashb02 0   ashb02 0
+                    shdc01 0   shdc02 0   shdc02 0   frem01 0   frem01 0
+                    shdc02 0   vadmz01 0             shdc02 0   shdc01 0
 ===========================================================================================
 ```
 
