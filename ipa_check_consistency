@@ -22,7 +22,7 @@
 set -eo pipefail
 IFS=$'\n'
 
-readonly APP_VER="17.1.29"
+readonly APP_VER="17.2.21"
 readonly APP_NAME="$(basename "$0")"
 readonly APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly TMP_DIR="$(mktemp -d)"
@@ -188,13 +188,20 @@ is_integer() {
   fi
 }
 
+get_hosts() {
+  local domain="$1"
+
+  if printf "$(dig +short "_ldap._tcp.${domain}" SRV | awk '{print $4}' | sed -e "s/\.$//" | sort | xargs)"; then
+    return 0
+  else
+    printf "Failed while detecting IPA servers in LDAP\n" >&2
+    return 1
+  fi
+}
+
 check_vars() {
   local -i fail=0 i=0
 
-  if [[ ${#SERVERS[@]} -lt 1 ]]; then
-    printf "Hosts not specified (-H)\n" >&2
-    fail=1
-  fi
   if [[ -z "$DOMAIN" ]]; then
     printf "IPA domain not specified (-d)\n" >&2
     fail=1
@@ -203,6 +210,19 @@ check_vars() {
       SUFFIX="dc=${DOMAIN//./,dc=}"
     fi
   fi
+
+  if [[ ${#SERVERS[@]} -lt 1 ]]; then
+    IFS=" "
+    SERVERS=($(get_hosts "$DOMAIN"))
+    IFS=$'\n'
+    if [[ ${#SERVERS[@]} -lt 1 ]]; then
+      printf "Hosts not specified with -H and not found in LDAP\n" >&2
+      fail=1
+    else
+      update_cols
+    fi
+  fi
+
   if is_integer "$WARNING"; then
     if ! [[ $WARNING -ge 0 && $WARNING -le $CHECKS_NO ]]; then
       printf "Warning threshold (-w) needs to be an integer between 1 and %i\n" "$CHECKS_NO" >&2
