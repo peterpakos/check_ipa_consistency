@@ -40,7 +40,7 @@ declare -i LAST_COLUMN=5
 declare -i NAGIOS=0
 declare WARNING=1
 declare CRITICAL=2
-declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "ldap" "ghosts" "bind")
+declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "certs" "ldap" "ghosts" "bind")
 declare -A NAGIOSMSGS=( \
                         ['users']='Active Users' \
                         ['ustage']='Stage Users' \
@@ -51,6 +51,7 @@ declare -A NAGIOSMSGS=( \
                         ['hbac']='HBAC Rules' \
                         ['sudo']='SUDO Rules' \
                         ['zones']='DNS Zones' \
+                        ['certs']='Certificates' \
                         ['ldap']='LDAP Conflicts' \
                         ['ghosts']='Ghost Replicas' \
                         ['bind']='Anonymous BIND' \
@@ -95,6 +96,7 @@ AVAILABLE OPTIONS:
     hbac    - HBAC Rules
     sudo    - SUDO Rules
     zones   - DNS Zones
+    certs   - DNS Zones
     ldap    - LDAP Conflicts
     ghosts  - Ghost Replicas
     bind    - Anonymous BIND
@@ -609,6 +611,38 @@ dns_zones() {
   fi
 }
 
+certificates() {
+  local server="" count="" state=""
+  local dir="${TMP_DIR}/certificates"
+
+  mkdir -p "$dir"
+  printf "%-${FIRST_COLUMN}s" "Certificates"
+  for server in "${SERVERS[@]}"; do
+    (
+    if ! count=$(query_ldap "ou=certificateRepository,ou=ca,o=ipaca" \
+      "(certStatus=*)" \
+      "dn" "one"); then
+      count="n/a"
+    else
+      count=$(grep -c "^dn:" <<<"$count" || true)
+    fi
+    printf "%s" "$count" > "${dir}/${server}"
+    ) &
+  done
+  wait
+  for server in "${SERVERS[@]}"; do
+    printf "%-${MIDDLE_COLUMNS}s" "$(< "${dir}/${server}")"
+  done
+  state="$(is_consistent "$dir")"
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "certs" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
+  fi
+}
+
 ldap_conflicts() {
   local server="" conflicts="" state="" consistent=""
   local dir="${TMP_DIR}/ldap_conflicts"
@@ -802,6 +836,7 @@ query_servers() {
   hbac_rules > "$TMP_DIR/hbac_rules.out" &
   sudo_rules > "$TMP_DIR/sudo_rules.out" &
   dns_zones > "$TMP_DIR/dns_zones.out" &
+  certificates > "$TMP_DIR/certificates.out" &
   ldap_conflicts > "$TMP_DIR/ldap_conflicts.out" &
   anon_bind > "$TMP_DIR/anon_bind.out" &
   replication > "$TMP_DIR/replication.out" &
@@ -819,6 +854,7 @@ display_data() {
   printf "%s\n" "$(< "${TMP_DIR}/hbac_rules.out")"
   printf "%s\n" "$(< "${TMP_DIR}/sudo_rules.out")"
   printf "%s\n" "$(< "${TMP_DIR}/dns_zones.out")"
+  printf "%s\n" "$(< "${TMP_DIR}/certificates.out")"
   printf "%s\n" "$(< "${TMP_DIR}/ldap_conflicts.out")"
   printf "%s\n" "$(< "${TMP_DIR}/ghost_replicas.out")"
   printf "%s\n" "$(< "${TMP_DIR}/anon_bind.out")"

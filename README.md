@@ -34,6 +34,7 @@ AVAILABLE OPTIONS:
     hbac    - HBAC Rules
     sudo    - SUDO Rules
     zones   - DNS Zones
+    certs   - Certificates
     ldap    - LDAP Conflicts
     ghosts  - Ghost Replicas
     bind    - Anonymous BIND
