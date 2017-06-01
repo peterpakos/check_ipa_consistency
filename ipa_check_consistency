@@ -96,7 +96,7 @@ AVAILABLE OPTIONS:
     hbac    - HBAC Rules
     sudo    - SUDO Rules
     zones   - DNS Zones
-    certs   - DNS Zones
+    certs   - Certificates
     ldap    - LDAP Conflicts
     ghosts  - Ghost Replicas
     bind    - Anonymous BIND
@@ -622,7 +622,7 @@ certificates() {
     if ! count=$(query_ldap "ou=certificateRepository,ou=ca,o=ipaca" \
       "(certStatus=*)" \
       "dn" "one"); then
-      count="n/a"
+      count="N/A"
     else
       count=$(grep -c "^dn:" <<<"$count" || true)
     fi
