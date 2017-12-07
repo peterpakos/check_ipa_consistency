@@ -40,7 +40,7 @@ declare -i LAST_COLUMN=5
 declare -i NAGIOS=0
 declare WARNING=1
 declare CRITICAL=2
-declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "certs" "ldap" "ghosts" "bind" "msdcs")
+declare -a NAGIOSOPTS=("all" "users" "ustage" "upres" "ugroups" "hosts" "hgroups" "hbac" "sudo" "zones" "certs" "ldap" "ghosts" "bind" "msdcs" "replica")
 declare -A NAGIOSMSGS=( \
                         ['users']='Active Users' \
                         ['ustage']='Stage Users' \
@@ -56,6 +56,7 @@ declare -A NAGIOSMSGS=( \
                         ['ghosts']='Ghost Replicas' \
                         ['bind']='Anonymous BIND' \
                         ['msdcs']='Microsoft ADTrust' \
+                        ['replica']='Replication Status' \
                       )
 declare -i CHECKS_NO=${#NAGIOSMSGS[@]}
 
@@ -102,6 +103,7 @@ AVAILABLE OPTIONS:
     ghosts  - Ghost Replicas
     bind    - Anonymous BIND
     msdcs   - Microsoft ADTrust
+    replica - Replication Status
 -w  Warning threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 1)
 -c  Critical threshold (0-${CHECKS_NO}), number of failed checks before alerting (default: 2)
 -h  Print this help summary page
@@ -784,6 +786,7 @@ replication() {
     fi
     [[ $n -gt $max ]] && max=$n
   done
+  state="OK"
   for ((i=1; i<=max; i++)); do
     [[ $i -eq 1 ]] && first_column="Replication Status" || first_column=""
     printf "%-${FIRST_COLUMN}s" "$first_column"
@@ -791,16 +794,24 @@ replication() {
       if [[ -s "${dir}/${server}" ]]; then
         line=$(sed -n '1p' "${dir}/${server}")
         sed -i -e '1d' "${dir}/${server}"
+        replstate=$(cut -f2 -d " " <<< $line)
       else
         line=""
       fi
       printf "%-${MIDDLE_COLUMNS}s" "$line"
-      if [[ "$line" == "ERROR" ]]; then
+      if [ "$line" = "ERROR" -o "$replstate" != "0" ]; then
         state="FAIL"
       fi
     done
-    printf "%-${LAST_COLUMN}s\n" "$state"
+    [[ $i -lt $max ]] && printf "\n"
   done
+  printf "%-${LAST_COLUMN}s\n" "$state"
+  if [[ $NAGIOS -eq 1 ]]; then
+    printf "%s\n" "$state" >> "${TMP_DIR}/nagios"
+    if [[ "$NAGIOSREPORT" == "replica" ]]; then
+      printf "%s\n" "$state" >> "${TMP_DIR}/$NAGIOSREPORT"
+    fi
+  fi
 }
 
 ghost_replicas() {
