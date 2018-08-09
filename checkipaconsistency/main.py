@@ -117,7 +117,7 @@ class Main(object):
 
         self._servers = OrderedDict()
         for host in self._hosts:
-            self._servers[host] = FreeIPAServer(host, self._domain, self._binddn, self._bindpw)
+            self._servers[host] = FreeIPAServer(host, self._domain, self._binddn, self._bindpw, self._args.support_ipa3)
 
         self._checks = OrderedDict([
             ('users', 'Active Users'),
@@ -154,6 +154,8 @@ class Main(object):
                             help='log to file (./%s.log by default)' % self._app_name)
         parser.add_argument('--no-header', action='store_true', dest='disable_header', help='disable table header')
         parser.add_argument('--no-border', action='store_true', dest='disable_border', help='disable table border')
+        parser.add_argument('--support-ipa3', action='store_true', dest='support_ipa3',
+                            help='enable support for ipa v3 nodes, which is usable for migration workflows')
         parser.add_argument('-n', nargs='?', dest='nagios_check', help='Nagios plugin mode', default='not_set',
                             choices=['', 'all', 'users', 'susers', 'pusers', 'hosts', 'services', 'ugroups', 'hgroups',
                                      'ngroups', 'hbac', 'sudo', 'zones', 'certs', 'conflicts', 'ghosts', 'bind',

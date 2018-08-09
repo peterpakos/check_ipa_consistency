@@ -29,7 +29,7 @@ import dns.resolver
 
 
 class FreeIPAServer(object):
-    def __init__(self, host, domain, binddn, bindpw):
+    def __init__(self, host, domain, binddn, bindpw, support_ipa3):
         self._log = logging.getLogger()
         self._log.debug('Initialising FreeIPA server %s' % host)
 
@@ -55,9 +55,17 @@ class FreeIPAServer(object):
         self._binddn = binddn
         self._bindpw = bindpw
         self._domain = domain
+        self._ldaps_port = '636'
         self._url = 'ldaps://' + host
         self.hostname_short = host.replace('.%s' % domain, '')
-        self._conn = self._get_conn()
+        self._conn = self._get_conn(self._ldaps_port, self._url)
+
+        self._support_ipa3 = support_ipa3
+
+        if self._support_ipa3:
+            self._pki_port = '7389'
+            self._url_pki = 'ldap://' + host + ':' + self._pki_port
+            self._conn_pki = self._get_conn(self._pki_port, self._url_pki)
 
         if not self._conn:
             return
@@ -108,12 +116,12 @@ class FreeIPAServer(object):
                 msg = e.args[0]['desc']
         return msg
 
-    def _get_conn(self):
-        self._log.debug('Setting up LDAP connection')
+    def _get_conn(self, port, uri):
+        self._log.debug('Setting up LDAP connection to port ' + port)
         ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
 
         try:
-            conn = ldap.initialize(self._url)
+            conn = ldap.initialize(uri)
             conn.set_option(ldap.OPT_NETWORK_TIMEOUT, 3)
             conn.simple_bind_s(self._binddn, self._bindpw)
         except (
@@ -125,16 +133,16 @@ class FreeIPAServer(object):
                 msg = e.message['desc']
             else:
                 msg = e.args[0]['desc']
-            self._log.debug('%s (%s)' % (msg, self._url))
+            self._log.debug('%s (%s)' % (msg, uri))
             return False
 
-        self._log.debug('LDAP connection established')
+        self._log.debug('LDAP connection established to port ' + port)
         return conn
 
-    def _search(self, base, fltr, attrs=None, scope=ldap.SCOPE_SUBTREE):
+    def _search(self, base, fltr, attrs=None, scope=ldap.SCOPE_SUBTREE, conn_obj_name='_conn'):
         self._log.debug('Search base: %s, filter: %s, attributes: %s, scope: %s' % (base, fltr, attrs, scope))
         try:
-            results = self._conn.search_s(base, scope, fltr, attrs)
+            results = getattr(self, conn_obj_name).search_s(base, scope, fltr, attrs)
         except (ldap.NO_SUCH_OBJECT, ldap.SERVER_DOWN) as e:
             self._log.debug(self._get_ldap_msg(e))
             results = False
@@ -300,10 +308,7 @@ class FreeIPAServer(object):
             '(|(objectClass=idnszone)(objectClass=idnsforwardzone))',
             scope=ldap.SCOPE_ONELEVEL
         )
-        if not results and type(results) is not list:
-            r = 0
-        else:
-            r = len(results)
+        r = len(results)
         self._log.debug(r)
         return r
 
@@ -316,7 +321,20 @@ class FreeIPAServer(object):
         )
 
         if not results and type(results) is not list:
-            r = 0
+            if self._support_ipa3:
+                self._log.debug('Counting certificates on slapd-pki instance...')
+                results_pki = self._search(
+                    'ou=certificateRepository,ou=ca,o=ipaca',
+                    '(certStatus=*)',
+                    scope=ldap.SCOPE_ONELEVEL,
+                    conn_obj_name='_conn_pki'
+                )
+                if not results_pki and type(results_pki) is not list:
+                    r = 0
+                else:
+                    r = len(results_pki)
+            else:
+                r = 0
         else:
             r = len(results)
 
