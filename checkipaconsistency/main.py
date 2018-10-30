@@ -117,7 +117,7 @@ class Main(object):
 
         self._servers = OrderedDict()
         for host in self._hosts:
-            self._servers[host] = FreeIPAServer(host, self._domain, self._binddn, self._bindpw)
+            self._servers[host] = FreeIPAServer(host, self._domain, self._binddn, self._bindpw, self._log)
 
         self._checks = OrderedDict([
             ('users', 'Active Users'),
