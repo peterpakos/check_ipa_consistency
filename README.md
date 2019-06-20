@@ -41,6 +41,11 @@ packages:
 ```
 $ sudo yum install python-devel openldap-devel
 ```
+Please note, in Debian/Ubuntu systems you may need to install the following
+packages:
+```
+$ sudo apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+```
 
 The tool is available in PyPI and can be installed using pip:
 ```
